@@ -3,7 +3,7 @@
         {description, "The Ancillary Inventory Control System OTP rest interface application"},
         {vsn, "semver"},
         {registered, []},
-        {included_applications, []},
+        {included_applications, [yaws]},
         {applications,
             [
                 kernel,
