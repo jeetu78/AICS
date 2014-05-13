@@ -1,0 +1,16 @@
+{application, ea_cs_core,
+    [
+        {description, "The Customer Scoring OTP core application"},
+        {vsn, "semver"},
+        {registered, []},
+        {included_applications, []},
+        {applications,
+            [
+                kernel,
+                stdlib
+            ]
+        },
+        {mod, {undefined, []}},
+        {env, []}
+    ]
+}.

@@ -1,0 +1,16 @@
+{application, ea_aics_core,
+    [
+        {description, "The Ancillary Inventory Control System OTP core application"},
+        {vsn, "semver"},
+        {registered, []},
+        {included_applications, []},
+        {applications,
+            [
+                kernel,
+                stdlib
+            ]
+        },
+        {mod, {undefined, []}},
+        {env, []}
+    ]
+}.

@@ -1,0 +1,16 @@
+{application, ea_aics_rest,
+    [
+        {description, "The Ancillary Inventory Control System OTP rest interface application"},
+        {vsn, "semver"},
+        {registered, []},
+        {included_applications, []},
+        {applications,
+            [
+                kernel,
+                stdlib
+            ]
+        },
+        {mod, {ea_aics_rest_app, []}},
+        {env, []}
+    ]
+}.
