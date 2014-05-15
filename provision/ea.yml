@@ -1,0 +1,8 @@
+- hosts: all
+  tasks:
+    - name: clean the ea_aics release
+      command: make distclean chdir=/vagrant/
+    - name: generate the ea_aics release
+      command: make release chdir=/vagrant/
+    - name: start the ea_aics release
+      command: _rel/bin/ea_aics start chdir=/vagrant/

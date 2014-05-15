@@ -57,10 +57,15 @@ init([]) ->
 
 start_listeners() ->
     GConfList = [],
-    AICS_SConfList = [{appmods, []}],
+    AICS_SConfList = [
+        {listen, {0, 0, 0, 0}},
+        {appmods, [
+            {"/flight", ea_aics_rest}]}
+        ],
     SConfList = [AICS_SConfList],
     {ok, SConf, GConf, ChildSpecs} = yaws_api:embedded_start_conf("/tmp", SConfList, GConfList),
-    ok = lists:foreach(fun(ChildSpec) -> {ok, _Child} = supervisor:start_child(?MODULE, ChildSpec) end, ChildSpecs),
+    ok = lists:foreach(fun(ChildSpec) ->
+        {ok, _Child} = supervisor:start_child(?MODULE, ChildSpec) end, ChildSpecs),
     ok = yaws_api:setconf(GConf, SConf).
 
 %% ===================================================================
