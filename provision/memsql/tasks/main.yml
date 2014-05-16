@@ -1,0 +1,22 @@
+---
+# tasks file for memsql
+
+- name: ensure dependencies installed
+  action: apt update_cache=yes pkg={{ item }} state=present
+  with_items:
+    - tar
+    - g++
+    - debianutils
+    - file
+    - mysql-client
+    - libtool
+
+- name: download memsql debian package
+  copy: src=memsql-2.5.x86_64.deb dest=/tmp/
+#  get_url: dest=/tmp/memsql.deb url={{ memsql_deb_http }}
+
+- name: ensure memsql installed
+  command: dpkg -i /tmp/memsql-2.5.x86_64.deb
+
+- name: ensure memsql service running
+  service: name=memsql state=started

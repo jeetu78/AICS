@@ -1,8 +1,33 @@
 - hosts: all
+  roles:
+    - { role: Mayeu.RabbitMQ, sudo: yes }
+    - { role: memsql, sudo: yes }
+
+  vars:
+    - rabbitmq_ssl: false
+    - rabbitmq_users_definitions: []
+    - memsql_deb_http: http://download.memsql.com/ba4bf06801d64f659b2f98a1feec020b/memsql-2.5.x86_64.deb
+
   tasks:
+    - name: check if ea_aics release is there
+      stat: path=/vagrant/_rel/bin/ea_aics
+      register: check_ea_aics_exe
+
+    - name: check if ea_aics release is runnning
+      command: _rel/bin/ea_aics ping chdir=/vagrant/
+      failed_when: false
+      register: check_ea_aics_running
+      when: check_ea_aics_exe.stat.exists
+
+    - name: ensure ea_aics release is not running
+      command: _rel/bin/ea_aics stop chdir=/vagrant/
+      when: check_ea_aics_exe.stat.exists and check_ea_aics_running.stdout.find('pong') != -1
+
     - name: clean the ea_aics release
       command: make distclean chdir=/vagrant/
+
     - name: generate the ea_aics release
       command: make release chdir=/vagrant/
+
     - name: start the ea_aics release
       command: _rel/bin/ea_aics start chdir=/vagrant/

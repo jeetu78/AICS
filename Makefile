@@ -42,7 +42,8 @@ clean:
 	@$(REBAR) -r clean
 
 distclean: clean
-	rm $(DEPSOLVER_PLT)
-	rm -rvf ./deps/*
+	# rm $(DEPSOLVER_PLT)
+	rm -rvf ./_rel
+	# rm -rvf ./deps/*
 
 .PHONY: all deps compile dialyze test doc validate release relup clean distclean
