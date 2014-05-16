@@ -27,7 +27,7 @@ test: compile
 	@$(REBAR) -r -v -DTEST eunit skip_deps=true verbose=0
 	ct_run -dir apps/*/itest -pa ebin -verbosity 0 -logdir .ct/logs -erl_args +K true +A 10
 
-doc:
+doc: compile
 	@$(REBAR) -r doc skip_deps=true
 
 validate: dialyze test
@@ -42,8 +42,11 @@ clean:
 	@$(REBAR) -r clean
 
 distclean: clean
-	# rm $(DEPSOLVER_PLT)
 	rm -rvf ./_rel
 	# rm -rvf ./deps/*
 
-.PHONY: all deps compile dialyze test doc validate release relup clean distclean
+ciclean: distclean
+	rm $(DEPSOLVER_PLT)
+	rm -rvf ./deps/*
+
+.PHONY: all deps compile dialyze test doc validate release relup clean distclean ciclean
