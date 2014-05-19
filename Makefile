@@ -35,6 +35,9 @@ validate: dialyze test
 release: clean validate
 	@$(RELX) release tar
 
+rel: compile
+	@$(RELX) release tar
+
 relup: clean validate
 	@$(RELX) release relup tar
 

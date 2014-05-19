@@ -25,12 +25,7 @@
 -export_type([]).
 
 -include_lib("yaws/include/yaws_api.hrl").
-
--define(HTTP_GET, 'GET').
--define(HTTP_POST, 'POST').
--define(HTTP_200, 200).
--define(HTTP_404, 404).
--define(HTTP_405, 405).
+-include("ea_aics_rest.hrl").
 
 %% ===================================================================
 %%  API
@@ -48,23 +43,31 @@
 
 out(#arg{} = Arg) ->
     Uri = yaws_api:request_url(Arg),
-    Path = string:tokens(Uri#url.path, "/"),
+    FullPath = string:tokens(Uri#url.path, "/"),
     HttpRequest = Arg#arg.req,
     HttpRequestMethod = yaws_api:http_request_method(HttpRequest),
-    process(HttpRequestMethod, Path).
+    post_process(dispatch(HttpRequestMethod, FullPath)).
 
 %% ===================================================================
 %%  Internal Functions
 %% ===================================================================
 
-process(?HTTP_GET, ["flights", Uri_FlightId, "dates", Uri_FlightDateTime]) ->
-    _FlightId = ea_aics_rest_utils:parse_uri_flight_id(Uri_FlightId),
-    _FlightDateTime = ea_aics_rest_utils:parse_uri_flight_date_time(Uri_FlightDateTime),
-    response(content(<<"application/json">>, <<"{}">>), status(?HTTP_200));
-process(?HTTP_GET, _Path) ->
-    response(status(?HTTP_404));
-process(_Method, _Path) ->
-    response(status(?HTTP_405)).
+dispatch(Method, ["flights", Uri_FlightId, "dates", Uri_FlightDateTime | Path]) ->
+    FlightId = ea_aics_rest_utils:parse_uri_flight_id(Uri_FlightId),
+    FlightDateTime = ea_aics_rest_utils:parse_uri_flight_date_time(Uri_FlightDateTime),
+    dispatch(Method, FlightId, FlightDateTime, Path);
+dispatch(_Method, _Path) ->
+    response(status(?HTTP_404)).
+
+dispatch(Method, FlightId, FlightDateTime, ["ancillaries" | Path]) ->
+    ea_aics_rest_ancillaries:process(Method, FlightId, FlightDateTime, Path);
+dispatch(Method, FlightId, FlightDateTime, ["ancillary-bookings"| Path]) ->
+    ea_aics_rest_ancillary_bookings:process(Method, FlightId, FlightDateTime, Path);
+dispatch(_Method, _FlightId, _FlightDateTime, _Path) ->
+    response(status(?HTTP_404)).
+
+post_process(Result) ->
+    Result.
 
 %% ===================================================================
 %%  Tests
@@ -78,12 +81,17 @@ module_test_() ->
     % ok = ok,
 
     [
-        {"request dispatching",
+        {"request pre processing",
             [
                 ?_assertMatch([{content, _, _}, {status, ?HTTP_200}],
-                    process(?HTTP_GET, ["flights", "flight-111", "dates", "2013-08-29T1215Z"])),
-                ?_assertMatch([{status, ?HTTP_404}], process(?HTTP_GET, ["something"])),
-                ?_assertMatch([{status, ?HTTP_405}], process(?HTTP_POST, ["something"]))
+                    dispatch(?HTTP_GET, ["flights", "flight-111", "dates", "2013-08-29T1215Z", "ancillaries"])),
+                ?_assertMatch([{content, _, _}, {status, ?HTTP_200}],
+                    dispatch(?HTTP_GET, ["flights", "flight-111", "dates", "2013-08-29T1215Z", "ancillary-bookings"])),
+                ?_assertMatch([{status, ?HTTP_404}],
+                    dispatch(?HTTP_GET, ["flights", "flight-111", "dates", "2013-08-29T1215Z"])),
+                ?_assertMatch([{status, ?HTTP_404}],
+                    dispatch(?HTTP_GET, ["flights", "flight-111", "dates", "2013-08-29T1215Z", "something"])),
+                ?_assertMatch([{status, ?HTTP_404}], dispatch(?HTTP_GET, ["something"]))
             ]
         }
     ].

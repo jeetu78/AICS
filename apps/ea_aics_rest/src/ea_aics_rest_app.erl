@@ -60,7 +60,7 @@ start_listeners() ->
     AICS_SConfList = [
         {listen, {0, 0, 0, 0}},
         {appmods, [
-            {"/flight", ea_aics_rest}]}
+            {"/", ea_aics_rest}]}
         ],
     SConfList = [AICS_SConfList],
     {ok, SConf, GConf, ChildSpecs} = yaws_api:embedded_start_conf("/tmp", SConfList, GConfList),

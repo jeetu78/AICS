@@ -15,6 +15,8 @@
 -export([
     parse_uri_flight_id/1,
     parse_uri_flight_date_time/1,
+    parse_uri_ancillary_id/1,
+    parse_uri_ancillary_booking_id/1,
     response/2,
     response/1,
     content/2,
@@ -25,6 +27,8 @@
 
 -define(URI_FLIGHT_ID_FORMAT, "flight-~s").
 -define(URI_FLIGHT_DATE_TIME_FORMAT, "~4d-~2d-~2dT~2d~2dZ").
+-define(URI_ANCILLARY_ID_FORMAT, "ancillary-~s").
+-define(URI_ANCILLARY_BOOKING_ID_FORMAT, "ancillary-booking-~s").
 
 %% ===================================================================
 %%  API
@@ -37,7 +41,7 @@
 %% @end
 %%------------------------------------------------------------------------------
 
--spec parse_uri_flight_id(list()) -> list().
+-spec parse_uri_flight_id(string()) -> string().
 
 parse_uri_flight_id(Uri_FlightId) ->
     {ok, [FlightId], _} =
@@ -51,12 +55,40 @@ parse_uri_flight_id(Uri_FlightId) ->
 %% @end
 %%------------------------------------------------------------------------------
 
--spec parse_uri_flight_date_time(list()) -> {calendar:date(), calendar:time()}.
+-spec parse_uri_flight_date_time(string()) -> {calendar:date(), calendar:time()}.
 
 parse_uri_flight_date_time(Uri_FlightDateTime) ->
     {ok, [Year, Month, Day, Hour, Minute], _} =
         io_lib:fread(?URI_FLIGHT_DATE_TIME_FORMAT, Uri_FlightDateTime),
     {{Year, Month, Day}, {Hour, Minute, 0}}.
+
+%%------------------------------------------------------------------------------
+%% @doc Extracts the AncillaryId from the uri string parameter.
+%% Format defined in URI_ANCILLARY_ID_FORMAT.
+%%
+%% @end
+%%------------------------------------------------------------------------------
+
+-spec parse_uri_ancillary_id(string()) -> string().
+
+parse_uri_ancillary_id(Uri_AncillaryId) ->
+    {ok, [AncillaryId], _} =
+        io_lib:fread(?URI_ANCILLARY_ID_FORMAT, Uri_AncillaryId),
+    AncillaryId.
+
+%%------------------------------------------------------------------------------
+%% @doc Extracts the AncillaryBookingId from the uri string parameter.
+%% Format defined in URI_ANCILLARY_BOOKING_ID_FORMAT.
+%%
+%% @end
+%%------------------------------------------------------------------------------
+
+-spec parse_uri_ancillary_booking_id(string()) -> string().
+
+parse_uri_ancillary_booking_id(Uri_AncillaryBookingId) ->
+    {ok, [AncillaryBookingId], _} =
+        io_lib:fread(?URI_ANCILLARY_BOOKING_ID_FORMAT, Uri_AncillaryBookingId),
+    AncillaryBookingId.
 
 %%------------------------------------------------------------------------------
 %% @doc Yaws response helper.
@@ -115,13 +147,31 @@ module_test_() ->
     % ok = ok,
 
     [
-        {"parsing",
+        {"parsing FlightId",
             [
                 ?_assertMatch("111", parse_uri_flight_id("flight-111")),
                 ?_assertMatch("flight-111", parse_uri_flight_id("flight-flight-111")),
-                ?_assertException(error, {badmatch, _}, parse_uri_flight_id("something-111")),
+                ?_assertException(error, {badmatch, _}, parse_uri_flight_id("something-111"))
+            ]
+        },
+        {"parsing FlightDateTime",
+            [
                 ?_assertMatch({{2013, 8, 29}, {12, 15, 0}}, parse_uri_flight_date_time("2013-08-29T1215Z")),
                 ?_assertException(error, {badmatch, _}, parse_uri_flight_date_time("2013-08-29T1215"))
+            ]
+        },
+        {"parsing AncillaryId",
+            [
+                ?_assertMatch("111", parse_uri_ancillary_id("ancillary-111")),
+                ?_assertMatch("ancillary-111", parse_uri_ancillary_id("ancillary-ancillary-111")),
+                ?_assertException(error, {badmatch, _}, parse_uri_ancillary_id("something-111"))
+            ]
+        },
+        {"parsing AncillaryBookingId",
+            [
+                ?_assertMatch("111", parse_uri_ancillary_booking_id("ancillary-booking-111")),
+                ?_assertMatch("ancillary-booking-111", parse_uri_ancillary_booking_id("ancillary-booking-ancillary-booking-111")),
+                ?_assertException(error, {badmatch, _}, parse_uri_ancillary_booking_id("something-111"))
             ]
         }
     ].
