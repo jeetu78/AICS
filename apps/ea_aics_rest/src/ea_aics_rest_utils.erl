@@ -40,7 +40,7 @@
 -spec parse_uri_flight_id(string()) -> string().
 
 parse_uri_flight_id(Uri_FlightId) ->
-    {ok, [FlightId], _} =
+    {ok, [FlightId], []} =
         io_lib:fread(?URI_FLIGHT_ID_FORMAT, Uri_FlightId),
     FlightId.
 
@@ -54,7 +54,7 @@ parse_uri_flight_id(Uri_FlightId) ->
 -spec parse_uri_flight_date_time(string()) -> {calendar:date(), calendar:time()}.
 
 parse_uri_flight_date_time(Uri_FlightDateTime) ->
-    {ok, [Year, Month, Day, Hour, Minute], _} =
+    {ok, [Year, Month, Day, Hour, Minute], []} =
         io_lib:fread(?URI_FLIGHT_DATE_TIME_FORMAT, Uri_FlightDateTime),
     {{Year, Month, Day}, {Hour, Minute, 0}}.
 
@@ -68,7 +68,7 @@ parse_uri_flight_date_time(Uri_FlightDateTime) ->
 -spec parse_uri_ancillary_id(string()) -> string().
 
 parse_uri_ancillary_id(Uri_AncillaryId) ->
-    {ok, [AncillaryId], _} =
+    {ok, [AncillaryId], []} =
         io_lib:fread(?URI_ANCILLARY_ID_FORMAT, Uri_AncillaryId),
     AncillaryId.
 
@@ -82,7 +82,7 @@ parse_uri_ancillary_id(Uri_AncillaryId) ->
 -spec parse_uri_ancillary_booking_id(string()) -> string().
 
 parse_uri_ancillary_booking_id(Uri_AncillaryBookingId) ->
-    {ok, [AncillaryBookingId], _} =
+    {ok, [AncillaryBookingId], []} =
         io_lib:fread(?URI_ANCILLARY_BOOKING_ID_FORMAT, Uri_AncillaryBookingId),
     AncillaryBookingId.
 
