@@ -13,14 +13,6 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--import(ea_aics_rest_utils,
-    [
-        response/2,
-        response/1,
-        content/2,
-        status/1
-    ]).
-
 -export([process/4]).
 
 -export_type([]).
@@ -41,20 +33,20 @@
 -spec process(atom(), string(), {calendar:date(), calendar:time()}, [string()]) -> list().
 
 process(?HTTP_POST, _FlightId, _FlightDateTime, []) ->
-    response(content(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY), status(?HTTP_201));
+    [?HTTP_CONTENT(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY), ?HTTP_STATUS(?HTTP_201)];
 process(?HTTP_GET, _FlightId, _FlightDateTime, []) ->
-    response(content(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY), status(?HTTP_200));
+    [?HTTP_CONTENT(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY), ?HTTP_STATUS(?HTTP_200)];
 process(?HTTP_GET, _FlightId, _FlightDateTime, [Uri_AncillaryBookingId]) ->
     _AncillaryBookingId = ea_aics_rest_utils:parse_uri_ancillary_booking_id(Uri_AncillaryBookingId),
-    response(content(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY), status(?HTTP_200));
+    [?HTTP_CONTENT(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY), ?HTTP_STATUS(?HTTP_200)];
 process(?HTTP_PUT, _FlightId, _FlightDateTime, [Uri_AncillaryBookingId]) ->
     _AncillaryBookingId = ea_aics_rest_utils:parse_uri_ancillary_booking_id(Uri_AncillaryBookingId),
-    response(content(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY), status(?HTTP_200));
+    [?HTTP_CONTENT(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY), ?HTTP_STATUS(?HTTP_200)];
 process(?HTTP_DELETE, _FlightId, _FlightDateTime, [Uri_AncillaryBookingId]) ->
     _AncillaryBookingId = ea_aics_rest_utils:parse_uri_ancillary_booking_id(Uri_AncillaryBookingId),
-    response(content(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY), status(?HTTP_200));
+    [?HTTP_CONTENT(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY), ?HTTP_STATUS(?HTTP_200)];
 process(_Method, _FlightId, _FlightDateTime, _Path) ->
-    response(status(?HTTP_405)).
+    [?HTTP_STATUS(?HTTP_405)].
 
 %% ===================================================================
 %%  Tests
@@ -70,33 +62,33 @@ module_test_() ->
     [
         {"post",
             [
-                ?_assertMatch([{content, _, _}, {status, ?HTTP_201}],
+                ?_assertMatch([?HTTP_CONTENT(_, _), ?HTTP_STATUS(?HTTP_201)],
                     process(?HTTP_POST, "111", {"date", "time"}, []))
             ]
         },
         {"get",
             [
-                ?_assertMatch([{content, _, _}, {status, ?HTTP_200}],
+                ?_assertMatch([?HTTP_CONTENT(_, _), ?HTTP_STATUS(?HTTP_200)],
                     process(?HTTP_GET, "111", {"date", "time"}, [])),
-                ?_assertMatch([{content, _, _}, {status, ?HTTP_200}],
+                ?_assertMatch([?HTTP_CONTENT(_, _), ?HTTP_STATUS(?HTTP_200)],
                     process(?HTTP_GET, "111", {"date", "time"}, ["ancillary-booking-111"]))
             ]
         },
         {"put",
             [
-                ?_assertMatch([{content, _, _}, {status, ?HTTP_200}],
+                ?_assertMatch([?HTTP_CONTENT(_, _), ?HTTP_STATUS(?HTTP_200)],
                     process(?HTTP_PUT, "111", {"date", "time"}, ["ancillary-booking-111"]))
             ]
         },
         {"delete",
             [
-                ?_assertMatch([{content, _, _}, {status, ?HTTP_200}],
+                ?_assertMatch([?HTTP_CONTENT(_, _), ?HTTP_STATUS(?HTTP_200)],
                     process(?HTTP_DELETE, "111", {"date", "time"}, ["ancillary-booking-111"]))
             ]
         },
         {"method not allowed",
             [
-                ?_assertMatch([{status, ?HTTP_405}],
+                ?_assertMatch([?HTTP_STATUS(?HTTP_405)],
                     process(?HTTP_DELETE, "111", {"date", "time"}, []))
             ]
         }

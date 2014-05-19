@@ -16,11 +16,7 @@
     parse_uri_flight_id/1,
     parse_uri_flight_date_time/1,
     parse_uri_ancillary_id/1,
-    parse_uri_ancillary_booking_id/1,
-    response/2,
-    response/1,
-    content/2,
-    status/1
+    parse_uri_ancillary_booking_id/1
     ]).
 
 -export_type([]).
@@ -89,51 +85,6 @@ parse_uri_ancillary_booking_id(Uri_AncillaryBookingId) ->
     {ok, [AncillaryBookingId], _} =
         io_lib:fread(?URI_ANCILLARY_BOOKING_ID_FORMAT, Uri_AncillaryBookingId),
     AncillaryBookingId.
-
-%%------------------------------------------------------------------------------
-%% @doc Yaws response helper.
-%%
-%% @end
-%%------------------------------------------------------------------------------
-
--spec response({content, term(), term()}, {status, term()}) -> [term()].
-
-response(Content, Status) ->
-    [Content, Status].
-
-%%------------------------------------------------------------------------------
-%% @doc Yaws response helper.
-%%
-%% @end
-%%------------------------------------------------------------------------------
-
--spec response({status, term()}) -> [term()].
-
-response(Status) ->
-    [Status].
-
--spec content(binary(), binary()) -> {content, binary(), binary()}.
-
-%%------------------------------------------------------------------------------
-%% @doc Yaws response content helper.
-%%
-%% @end
-%%------------------------------------------------------------------------------
-
-content(ContentType, ContentBody) when is_binary(ContentType)
-    andalso is_binary(ContentBody)  ->
-        {content, ContentType, ContentBody}.
-
-%%------------------------------------------------------------------------------
-%% @doc Yaws response status helper.
-%%
-%% @end
-%%------------------------------------------------------------------------------
-
--spec status(integer()) -> {status, integer()}.
-
-status(StatusCode) when is_integer(StatusCode) ->
-    {status, StatusCode}.
 
 %% ===================================================================
 %%  Tests

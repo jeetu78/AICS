@@ -12,14 +12,6 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--import(ea_aics_rest_utils,
-    [
-        response/2,
-        response/1,
-        content/2,
-        status/1
-    ]).
-
 -export([out/1]).
 
 -export_type([]).
@@ -57,14 +49,14 @@ dispatch(Method, ["flights", Uri_FlightId, "dates", Uri_FlightDateTime | Path]) 
     FlightDateTime = ea_aics_rest_utils:parse_uri_flight_date_time(Uri_FlightDateTime),
     dispatch(Method, FlightId, FlightDateTime, Path);
 dispatch(_Method, _Path) ->
-    response(status(?HTTP_404)).
+    [?HTTP_STATUS(?HTTP_404)].
 
 dispatch(Method, FlightId, FlightDateTime, ["ancillaries" | Path]) ->
     ea_aics_rest_ancillaries:process(Method, FlightId, FlightDateTime, Path);
 dispatch(Method, FlightId, FlightDateTime, ["ancillary-bookings"| Path]) ->
     ea_aics_rest_ancillary_bookings:process(Method, FlightId, FlightDateTime, Path);
 dispatch(_Method, _FlightId, _FlightDateTime, _Path) ->
-    response(status(?HTTP_404)).
+    [?HTTP_STATUS(?HTTP_404)].
 
 post_process(Result) ->
     Result.
@@ -83,15 +75,15 @@ module_test_() ->
     [
         {"request pre processing",
             [
-                ?_assertMatch([{content, _, _}, {status, ?HTTP_200}],
+                ?_assertMatch([?HTTP_CONTENT(_, _), ?HTTP_STATUS(?HTTP_200)],
                     dispatch(?HTTP_GET, ["flights", "flight-111", "dates", "2013-08-29T1215Z", "ancillaries"])),
-                ?_assertMatch([{content, _, _}, {status, ?HTTP_200}],
+                ?_assertMatch([?HTTP_CONTENT(_, _), ?HTTP_STATUS(?HTTP_200)],
                     dispatch(?HTTP_GET, ["flights", "flight-111", "dates", "2013-08-29T1215Z", "ancillary-bookings"])),
-                ?_assertMatch([{status, ?HTTP_404}],
+                ?_assertMatch([?HTTP_STATUS(?HTTP_404)],
                     dispatch(?HTTP_GET, ["flights", "flight-111", "dates", "2013-08-29T1215Z"])),
-                ?_assertMatch([{status, ?HTTP_404}],
+                ?_assertMatch([?HTTP_STATUS(?HTTP_404)],
                     dispatch(?HTTP_GET, ["flights", "flight-111", "dates", "2013-08-29T1215Z", "something"])),
-                ?_assertMatch([{status, ?HTTP_404}], dispatch(?HTTP_GET, ["something"]))
+                ?_assertMatch([?HTTP_STATUS(?HTTP_404)], dispatch(?HTTP_GET, ["something"]))
             ]
         }
     ].

@@ -11,3 +11,8 @@
 -define(HTTP_CONTENT_JSON, <<"application/json">>).
 
 -define(HTTP_BODY_JSON_EMPTY, <<"">>).
+
+-define(HTTP_CONTENT(HttpContentType, HttpContentBody),
+    {content, HttpContentType, HttpContentBody}).
+
+-define(HTTP_STATUS(HttpStatus), {status, HttpStatus}).
