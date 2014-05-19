@@ -33,20 +33,31 @@
 -spec process(atom(), string(), {calendar:date(), calendar:time()}, [string()]) -> list().
 
 process(?HTTP_POST, _FlightId, _FlightDateTime, []) ->
-    [?HTTP_CONTENT(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY), ?HTTP_STATUS(?HTTP_201)];
+    HttpContent = ?HTTP_CONTENT(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY),
+    HttpStatus = ?HTTP_STATUS(?HTTP_201),
+    [HttpContent, HttpStatus];
 process(?HTTP_GET, _FlightId, _FlightDateTime, []) ->
-    [?HTTP_CONTENT(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY), ?HTTP_STATUS(?HTTP_200)];
+    HttpContent = ?HTTP_CONTENT(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY),
+    HttpStatus = ?HTTP_STATUS(?HTTP_200),
+    [HttpContent, HttpStatus];
 process(?HTTP_GET, _FlightId, _FlightDateTime, [Uri_AncillaryBookingId]) ->
     _AncillaryBookingId = ea_aics_rest_utils:parse_uri_ancillary_booking_id(Uri_AncillaryBookingId),
-    [?HTTP_CONTENT(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY), ?HTTP_STATUS(?HTTP_200)];
+    HttpContent = ?HTTP_CONTENT(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY),
+    HttpStatus = ?HTTP_STATUS(?HTTP_200),
+    [HttpContent, HttpStatus];
 process(?HTTP_PUT, _FlightId, _FlightDateTime, [Uri_AncillaryBookingId]) ->
     _AncillaryBookingId = ea_aics_rest_utils:parse_uri_ancillary_booking_id(Uri_AncillaryBookingId),
-    [?HTTP_CONTENT(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY), ?HTTP_STATUS(?HTTP_200)];
+    HttpContent = ?HTTP_CONTENT(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY),
+    HttpStatus = ?HTTP_STATUS(?HTTP_200),
+    [HttpContent, HttpStatus];
 process(?HTTP_DELETE, _FlightId, _FlightDateTime, [Uri_AncillaryBookingId]) ->
     _AncillaryBookingId = ea_aics_rest_utils:parse_uri_ancillary_booking_id(Uri_AncillaryBookingId),
-    [?HTTP_CONTENT(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY), ?HTTP_STATUS(?HTTP_200)];
+    HttpContent = ?HTTP_CONTENT(?HTTP_CONTENT_JSON, ?HTTP_BODY_JSON_EMPTY),
+    HttpStatus = ?HTTP_STATUS(?HTTP_200),
+    [HttpContent, HttpStatus];
 process(_Method, _FlightId, _FlightDateTime, _Path) ->
-    [?HTTP_STATUS(?HTTP_405)].
+    HttpStatus = ?HTTP_STATUS(?HTTP_405),
+    [HttpStatus].
 
 %% ===================================================================
 %%  Tests
@@ -62,27 +73,32 @@ module_test_() ->
     [
         {"post",
             [
-                ?_assertMatch([?HTTP_CONTENT(_, _), ?HTTP_STATUS(?HTTP_201)],
+                ?_assertMatch([?HTTP_CONTENT(_, _),
+                        ?HTTP_STATUS(?HTTP_201)],
                     process(?HTTP_POST, "111", {"date", "time"}, []))
             ]
         },
         {"get",
             [
-                ?_assertMatch([?HTTP_CONTENT(_, _), ?HTTP_STATUS(?HTTP_200)],
+                ?_assertMatch([?HTTP_CONTENT(_, _),
+                        ?HTTP_STATUS(?HTTP_200)],
                     process(?HTTP_GET, "111", {"date", "time"}, [])),
-                ?_assertMatch([?HTTP_CONTENT(_, _), ?HTTP_STATUS(?HTTP_200)],
+                ?_assertMatch([?HTTP_CONTENT(_, _),
+                        ?HTTP_STATUS(?HTTP_200)],
                     process(?HTTP_GET, "111", {"date", "time"}, ["ancillary-booking-111"]))
             ]
         },
         {"put",
             [
-                ?_assertMatch([?HTTP_CONTENT(_, _), ?HTTP_STATUS(?HTTP_200)],
+                ?_assertMatch([?HTTP_CONTENT(_, _),
+                        ?HTTP_STATUS(?HTTP_200)],
                     process(?HTTP_PUT, "111", {"date", "time"}, ["ancillary-booking-111"]))
             ]
         },
         {"delete",
             [
-                ?_assertMatch([?HTTP_CONTENT(_, _), ?HTTP_STATUS(?HTTP_200)],
+                ?_assertMatch([?HTTP_CONTENT(_, _),
+                        ?HTTP_STATUS(?HTTP_200)],
                     process(?HTTP_DELETE, "111", {"date", "time"}, ["ancillary-booking-111"]))
             ]
         },

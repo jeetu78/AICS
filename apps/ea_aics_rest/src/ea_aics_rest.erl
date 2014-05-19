@@ -49,14 +49,16 @@ dispatch(Method, ["flights", Uri_FlightId, "dates", Uri_FlightDateTime | Path]) 
     FlightDateTime = ea_aics_rest_utils:parse_uri_flight_date_time(Uri_FlightDateTime),
     dispatch(Method, FlightId, FlightDateTime, Path);
 dispatch(_Method, _Path) ->
-    [?HTTP_STATUS(?HTTP_404)].
+    HttpStatus = ?HTTP_STATUS(?HTTP_404),
+    [HttpStatus].
 
 dispatch(Method, FlightId, FlightDateTime, ["ancillaries" | Path]) ->
     ea_aics_rest_ancillaries:process(Method, FlightId, FlightDateTime, Path);
 dispatch(Method, FlightId, FlightDateTime, ["ancillary-bookings"| Path]) ->
     ea_aics_rest_ancillary_bookings:process(Method, FlightId, FlightDateTime, Path);
 dispatch(_Method, _FlightId, _FlightDateTime, _Path) ->
-    [?HTTP_STATUS(?HTTP_404)].
+    HttpStatus = ?HTTP_STATUS(?HTTP_404),
+    [HttpStatus].
 
 post_process(Result) ->
     Result.
@@ -75,9 +77,11 @@ module_test_() ->
     [
         {"request pre processing",
             [
-                ?_assertMatch([?HTTP_CONTENT(_, _), ?HTTP_STATUS(?HTTP_200)],
+                ?_assertMatch([?HTTP_CONTENT(_, _),
+                        ?HTTP_STATUS(?HTTP_200)],
                     dispatch(?HTTP_GET, ["flights", "flight-111", "dates", "2013-08-29T1215Z", "ancillaries"])),
-                ?_assertMatch([?HTTP_CONTENT(_, _), ?HTTP_STATUS(?HTTP_200)],
+                ?_assertMatch([?HTTP_CONTENT(_, _),
+                        ?HTTP_STATUS(?HTTP_200)],
                     dispatch(?HTTP_GET, ["flights", "flight-111", "dates", "2013-08-29T1215Z", "ancillary-bookings"])),
                 ?_assertMatch([?HTTP_STATUS(?HTTP_404)],
                     dispatch(?HTTP_GET, ["flights", "flight-111", "dates", "2013-08-29T1215Z"])),
