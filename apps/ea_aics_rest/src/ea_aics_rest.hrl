@@ -1,18 +1,10 @@
--define(HTTP_GET, 'GET').
--define(HTTP_POST, 'POST').
--define(HTTP_PUT, 'PUT').
--define(HTTP_DELETE, 'DELETE').
-
 -define(HTTP_200, 200).
 -define(HTTP_201, 201).
+-define(HTTP_204, 204).
 -define(HTTP_404, 404).
 -define(HTTP_405, 405).
+-define(HTTP_501, 501).
 
--define(HTTP_CONTENT_JSON, <<"application/json">>).
+-define(HTTP_CONTENT_TYPE_JSON, <<"application/json">>).
 
--define(HTTP_BODY_JSON_EMPTY, <<"">>).
-
--define(HTTP_CONTENT(HttpContentType, HttpContentBody),
-    {content, HttpContentType, HttpContentBody}).
-
--define(HTTP_STATUS(HttpStatus), {status, HttpStatus}).
+-define(HTTP_CONTENT_BODY_EMPTY, <<"">>).
