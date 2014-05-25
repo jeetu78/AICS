@@ -20,7 +20,7 @@ $(DEPSOLVER_PLT):
 		--apps erts kernel stdlib crypto public_key
 
 dialyze: $(DEPSOLVER_PLT) compile
-	@$(DIALYZER) --plt $(DEPSOLVER_PLT) --src apps/*/src -I deps/ \
+	@$(DIALYZER) --plt $(DEPSOLVER_PLT) --src apps/*/src -I apps/ -I deps/ \
 		-Wunmatched_returns -Werror_handling -Wrace_conditions -Wno_undefined_callbacks
 
 test: compile
