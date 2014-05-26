@@ -6,7 +6,7 @@
   vars:
     - rabbitmq_ssl: false
     - rabbitmq_users_definitions: []
-    - memsql_deb_http: http://download.memsql.com/ba4bf06801d64f659b2f98a1feec020b/memsql-2.5.x86_64.deb
+    - memsql_deb_http: http://download.memsql.com/8582291e4add4b1f9dd92335bca004eb/memsql-2.6.x86_64.deb
 
   tasks:
     - name: check if ea_aics release is there
