@@ -1,0 +1,12 @@
+- hosts: all
+  roles:
+    - { role: Mayeu.RabbitMQ, sudo: yes }
+    - { role: memsql, sudo: yes }
+
+  vars:
+    - rabbitmq_ssl: false
+    - rabbitmq_vhost_definitions: []
+    - rabbitmq_users_definitions:
+      - user    : ea
+        password: ea
+    - memsql_deb_http: http://download.memsql.com/ba4bf06801d64f659b2f98a1feec020b/memsql-2.6.x86_64.deb

@@ -43,6 +43,7 @@ process('POST', WebArg, ["flights", Uri_FlightId, "ancillary-bookings"] = Path) 
     FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
     {ok, #ea_aics_ancillary_booking{} = AncillaryBooking} =
         ea_aics_store_ancillary_bookings:create(FlightId, JsonView_AllocatedAncillaryId),
+    ok = ea_aics_mq:produce(AncillaryBooking),
     AncillaryBookingId = AncillaryBooking#ea_aics_ancillary_booking.id,
     ResourceInstanceUri = resource_instance_uri(WebArg, Path, FlightId, AncillaryBookingId),
     HttpStatus = {status, ?HTTP_201},
@@ -149,6 +150,11 @@ module_test_() ->
         {"post",
             [
                 fun() ->
+
+                    ok = meck:new(ea_aics_mq, [non_strict]),
+
+                    ok = meck:expect(ea_aics_mq, produce, ['_'], ok),
+
                     ResourceId = <<"111">>,
                     Resource = #ea_aics_ancillary_booking{id = ResourceId},
 
@@ -162,6 +168,8 @@ module_test_() ->
                     HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
 
                     ok = meck:wait(ea_aics_store_ancillary_bookings, create, '_', 1000),
+
+                    ok = meck:wait(ea_aics_mq, produce, '_', 1000),
 
                     [HttpResponseStatus, HttpResponseHeaders] = HttpResponse,
                     ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus),

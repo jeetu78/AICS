@@ -1,0 +1,16 @@
+{application, ea_cs_mq,
+    [
+        {description, "The Customer Scoring broker interface application"},
+        {vsn, "semver"},
+        {registered, []},
+        {included_applications, [xmerl, rabbit_common, amqp_client, pooler]},
+        {applications,
+            [
+                kernel,
+                stdlib
+            ]
+        },
+        {mod, {ea_cs_mq_app, []}},
+        {env, []}
+    ]
+}.

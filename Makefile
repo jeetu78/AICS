@@ -33,10 +33,12 @@ doc: compile
 validate: dialyze test
 
 release: clean validate
-	@$(RELX) release tar
+	@$(RELX) -c ./ea_aics_relx.config release tar
+	@$(RELX) -c ./ea_cs_relx.config release tar
 
 rel: compile
-	@$(RELX) release tar
+	@$(RELX) -c ./ea_aics_relx.config release tar
+	@$(RELX) -c ./ea_cs_relx.config release tar
 
 relup: clean validate
 	@$(RELX) release relup tar
@@ -45,7 +47,7 @@ clean:
 	@$(REBAR) -r clean
 
 distclean: clean
-	rm -rvf ./_rel
+	rm -rvf ./_rel*
 	# rm -rvf ./deps/*
 
 ciclean: distclean
