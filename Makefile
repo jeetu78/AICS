@@ -51,7 +51,7 @@ distclean: clean
 	# rm -rvf ./deps/*
 
 ciclean: distclean
-	rm $(DEPSOLVER_PLT)
+	rm -rvf $(DEPSOLVER_PLT)
 	rm -rvf ./deps/*
 
 .PHONY: all deps compile dialyze test doc validate release relup clean distclean ciclean
