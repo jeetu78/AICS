@@ -4,3 +4,4 @@
 ct_run*
 variables*
 *.log
+ct_log_cache

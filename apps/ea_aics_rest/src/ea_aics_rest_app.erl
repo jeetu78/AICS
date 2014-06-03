@@ -64,8 +64,12 @@ start_listeners() ->
         ],
     SConfList = [AICS_SConfList],
     {ok, SConf, GConf, ChildSpecs} = yaws_api:embedded_start_conf("/tmp", SConfList, GConfList),
-    ok = lists:foreach(fun(ChildSpec) ->
-        {ok, _Child} = supervisor:start_child(?MODULE, ChildSpec) end, ChildSpecs),
+    ok = lists:foreach(
+        fun(ChildSpec) ->
+            %% TODO change to {ok, _Child} = supervisor:start_child(?MODULE, ChildSpec)
+            %% no matching right now for a bug in the SENDFILE driver in yaws-1.98 on OSX Mavericks
+            supervisor:start_child(?MODULE, ChildSpec)
+        end, ChildSpecs),
     ok = yaws_api:setconf(GConf, SConf).
 
 %% ===================================================================
