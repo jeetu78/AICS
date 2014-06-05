@@ -18,8 +18,6 @@
 -behaviour(supervisor).
 -export([init/1]).
 
--export([start_broker_connection/0]).
-
 -export_type([]).
 
 -include_lib("amqp_client/include/amqp_client.hrl").
@@ -30,38 +28,12 @@
 %%  API
 %% ===================================================================
 
-%%------------------------------------------------------------------------------
-%% @doc Starts a broker connection.
-%%
-%% @end
-%%------------------------------------------------------------------------------
-
--spec start_broker_connection() -> {ok, pid()}.
-
-start_broker_connection() ->
-    case amqp_connection:start(#amqp_params_network{username = <<"ea">>,
-                                                    password = <<"ea">>}) of
-        {ok, BrokerConnectionPid} ->
-            {ok, BrokerConnectionPid};
-        {error, econnrefused} ->
-            %% TODO retry mechanism using alarm handlers
-            {error, econnrefused}
-    end.
-
 %% ===================================================================
 %%  application callbacks
 %% ===================================================================
 
 start(_Type, _StartArgs) ->
     {ok, PoolerSupervisorPid} = supervisor:start_link({?SCOPE, ?MODULE}, ?MODULE, []),
-    PoolConfig = [{name, rabbitmq_connections},
-                  {max_count, 10},
-                  {init_count, 10},
-                  {start_mfa,
-                    {?MODULE,
-                     start_broker_connection,
-                     []}}],
-    {ok, _PoolPid} = pooler:new_pool(PoolConfig),
     {ok, PoolerSupervisorPid}.
 
 stop(_State) ->
