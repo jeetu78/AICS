@@ -26,26 +26,12 @@
 %%  API
 %% ===================================================================
 
-%%------------------------------------------------------------------------------
-%% @doc
-%%
-%% @end
-%%------------------------------------------------------------------------------
-
 %% ===================================================================
 %%  application callbacks
 %% ===================================================================
 
 start(_Type, _StartArgs) ->
     {ok, PoolerSupervisorPid} = supervisor:start_link({?SCOPE, ?MODULE}, ?MODULE, []),
-    PoolConfig = [{name, memsql},
-                  {max_count, 1},
-                  {init_count, 1},
-                  {start_mfa,
-                    {mysql_conn,
-                     start_link,
-                     ["127.0.0.1", 3306, "root", "", "AICS", fun(_, _, _, _) -> ok end, utf8, memsql]}}],
-    {ok, _PoolPid} = pooler:new_pool(PoolConfig),
     {ok, PoolerSupervisorPid}.
 
 stop(_State) ->

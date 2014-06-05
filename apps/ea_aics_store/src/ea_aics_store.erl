@@ -12,7 +12,8 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([do_query/1,
+-export([start_pool_member/0,
+         do_query/1,
          generate_uuid/0]).
 
 -export_type([]).
@@ -20,6 +21,19 @@
 %% ===================================================================
 %%  API
 %% ===================================================================
+
+%%------------------------------------------------------------------------------
+%% @doc Starts a member of the store pool.
+%%
+%% @end
+%%------------------------------------------------------------------------------
+
+-spec start_pool_member() -> {ok, pid()}.
+
+start_pool_member() ->
+    {ok, ConnectionPid} = mysql_conn:start_link("127.0.0.1", 3306, "root", "",
+        "AICS", fun(_, _, _, _) -> ok end, utf8, memsql),
+    {ok, ConnectionPid}.
 
 %%------------------------------------------------------------------------------
 %% @doc Executes a query on the storage system.
