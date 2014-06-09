@@ -1,11 +1,9 @@
 %%%=============================================================================
 %%% @author Alexej Tessaro <alexej.tessaro@erlang-solutions.com>
-%%% @doc The Ancillary Inventory Control System broker interface app callback
-%%%
+%%% @doc The Costumer Scoring app callback.
 %%% @end
 %%%=============================================================================
-
--module(ea_aics_mq_app).
+-module(ea_cs_core_app).
 
 -ifdef(TEST).
 -include_lib("eqc/include/eqc.hrl").
@@ -20,8 +18,6 @@
 
 -export_type([]).
 
--include_lib("amqp_client/include/amqp_client.hrl").
-
 -define(SCOPE, local).
 
 %% ===================================================================
@@ -33,8 +29,8 @@
 %% ===================================================================
 
 start(_Type, _StartArgs) ->
-    {ok, PoolerSupervisorPid} = supervisor:start_link({?SCOPE, ?MODULE}, ?MODULE, []),
-    {ok, PoolerSupervisorPid}.
+    {ok, _AppSupervisorPid} = supervisor:start_link(
+            {?SCOPE, ?MODULE}, ?MODULE, []).
 
 stop(_State) ->
     ok.
@@ -52,16 +48,11 @@ init([]) ->
 %% ===================================================================
 
 supervisor_child_specs() ->
-    lists:flatten([pooler_supervisor_child_spec()]).
+    [pooler_supervisor_child_spec()].
 
 pooler_supervisor_child_spec() ->
-    pooler_supervisor_child_spec(erlang:whereis(pooler_sup)).
-
-pooler_supervisor_child_spec(PoolerSup) when is_pid(PoolerSup) ->
-    [];
-pooler_supervisor_child_spec(undefined) ->
-    [{pooler_sup, {pooler_sup, start_link, []},
-        permanent, infinity, supervisor, [pooler_sup]}].
+    {pooler_sup, {pooler_sup, start_link, []},
+     permanent, infinity, supervisor, [pooler_sup]}.
 
 %% ===================================================================
 %%  Tests

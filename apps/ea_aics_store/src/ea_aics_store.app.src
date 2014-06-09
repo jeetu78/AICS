@@ -3,14 +3,17 @@
         {description, "The Ancillary Inventory Control System store interface application"},
         {vsn, "semver"},
         {registered, []},
-        {included_applications, [pooler, mysql, uuid]},
+        {included_applications,
+            [
+                mysql,
+                uuid
+            ]},
         {applications,
             [
                 kernel,
                 stdlib
             ]
         },
-        {mod, {ea_aics_store_app, []}},
         {env, []}
     ]
 }.

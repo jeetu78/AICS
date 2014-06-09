@@ -52,21 +52,11 @@ init([]) ->
 %% ===================================================================
 
 supervisor_child_specs() ->
-    lists:flatten([pooler_supervisor_child_spec(),
-                   broker_component_supervisor_child_spec()]).
-
-pooler_supervisor_child_spec() ->
-    pooler_supervisor_child_spec(erlang:whereis(pooler_sup)).
-
-pooler_supervisor_child_spec(PoolerSup) when is_pid(PoolerSup) ->
-    [];
-pooler_supervisor_child_spec(undefined) ->
-    [{pooler_sup, {pooler_sup, start_link, []},
-        permanent, infinity, supervisor, [pooler_sup]}].
+    [broker_component_supervisor_child_spec()].
 
 broker_component_supervisor_child_spec() ->
-    [{ea_cs_mq_sup, {ea_cs_mq_sup, start_link, []},
-        permanent, infinity, supervisor, [ea_cs_mq_sup]}].
+    {ea_cs_mq_sup, {ea_cs_mq_sup, start_link, []},
+     permanent, infinity, supervisor, [ea_cs_mq_sup]}.
 
 %% ===================================================================
 %%  Tests

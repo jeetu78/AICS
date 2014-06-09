@@ -1,11 +1,9 @@
 %%%=============================================================================
 %%% @author Alexej Tessaro <alexej.tessaro@erlang-solutions.com>
-%%% @doc The Ancillary Inventory Control System store interface app callback
-%%%
+%%% @doc The Ancillary Inventory Control System core app callback.
 %%% @end
 %%%=============================================================================
-
--module(ea_aics_store_app).
+-module(ea_aics_core_app).
 
 -ifdef(TEST).
 -include_lib("eqc/include/eqc.hrl").
@@ -31,8 +29,8 @@
 %% ===================================================================
 
 start(_Type, _StartArgs) ->
-    {ok, PoolerSupervisorPid} = supervisor:start_link({?SCOPE, ?MODULE}, ?MODULE, []),
-    {ok, PoolerSupervisorPid}.
+    {ok, _AppSupervisorPid} = supervisor:start_link(
+            {?SCOPE, ?MODULE}, ?MODULE, []).
 
 stop(_State) ->
     ok.
@@ -42,16 +40,19 @@ stop(_State) ->
 %% ===================================================================
 
 init([]) ->
-    PoolerSup = pooler_supervisor_child_spec(),
-    {ok, {{one_for_one, 0, 1}, [PoolerSup]}}.
+    SupChildSpecs = supervisor_child_specs(),
+    {ok, {{one_for_one, 0, 1}, SupChildSpecs}}.
 
 %% ===================================================================
 %%  Internal Functions
 %% ===================================================================
 
+supervisor_child_specs() ->
+    [pooler_supervisor_child_spec()].
+
 pooler_supervisor_child_spec() ->
     {pooler_sup, {pooler_sup, start_link, []},
-        permanent, infinity, supervisor, [pooler_sup]}.
+     permanent, infinity, supervisor, [pooler_sup]}.
 
 %% ===================================================================
 %%  Tests
@@ -64,14 +65,18 @@ sanity_test_() ->
         ?_assertMatch(local, ?SCOPE)
     ].
 
-callback_test_() ->
+app_callback_test_() ->
+    [
+        ?_assertMatch({ok, Pid} when is_pid(Pid), start(temporary, [])),
+        ?_assertMatch(ok, stop([]))
+    ].
 
-    PoolerSup = pooler_supervisor_child_spec(),
+sup_callback_test_() ->
+
+    ChildSpecs = supervisor_child_specs(),
 
     [
-        ?_assertMatch(ok, stop([])),
-        ?_assertMatch({ok, Pid} when is_pid(Pid), start(temporary, [])),
-        ?_assertMatch({ok, {{one_for_one, 0, 1}, [PoolerSup]}}, init([]))
+        ?_assertMatch({ok, {{one_for_one, 0, 1}, ChildSpecs}}, init([]))
     ].
 
 -endif.
