@@ -12,7 +12,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([]).
+-export([start_pool_member/0]).
 
 -export_type([]).
 
@@ -22,6 +22,20 @@
 %% ===================================================================
 %%  API
 %% ===================================================================
+
+%%------------------------------------------------------------------------------
+%% @doc Starts a member of the broker pool.
+%%
+%% @end
+%%------------------------------------------------------------------------------
+
+-spec start_pool_member() -> {ok, pid()}.
+
+start_pool_member() ->
+    ConnectionConfig = #amqp_params_network{username = <<"ea">>,
+                                            password = <<"ea">>},
+    {ok, ConnectionPid} = amqp_connection:start(ConnectionConfig),
+    {ok, ConnectionPid}.
 
 %% ===================================================================
 %%  Tests

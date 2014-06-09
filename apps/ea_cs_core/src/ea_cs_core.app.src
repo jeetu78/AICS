@@ -3,14 +3,17 @@
         {description, "The Customer Scoring OTP core application"},
         {vsn, "semver"},
         {registered, []},
-        {included_applications, []},
+        {included_applications, 
+            [
+                pooler
+            ]},
         {applications,
             [
                 kernel,
                 stdlib
             ]
         },
-        {mod, {undefined, []}},
+        {mod, {ea_cs_core_app, []}},
         {env, []}
     ]
 }.

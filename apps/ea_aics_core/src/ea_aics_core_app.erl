@@ -1,11 +1,9 @@
 %%%=============================================================================
 %%% @author Alexej Tessaro <alexej.tessaro@erlang-solutions.com>
-%%% @doc The Ancillary Inventory Control System broker interface app callback
-%%%
+%%% @doc The Ancillary Inventory Control System core app callback.
 %%% @end
 %%%=============================================================================
-
--module(ea_aics_mq_app).
+-module(ea_aics_core_app).
 
 -ifdef(TEST).
 -include_lib("eqc/include/eqc.hrl").
@@ -18,11 +16,7 @@
 -behaviour(supervisor).
 -export([init/1]).
 
--export([start_broker_connection/0]).
-
 -export_type([]).
-
--include_lib("amqp_client/include/amqp_client.hrl").
 
 -define(SCOPE, local).
 
@@ -30,39 +24,13 @@
 %%  API
 %% ===================================================================
 
-%%------------------------------------------------------------------------------
-%% @doc Starts a broker connection.
-%%
-%% @end
-%%------------------------------------------------------------------------------
-
--spec start_broker_connection() -> {ok, pid()}.
-
-start_broker_connection() ->
-    case amqp_connection:start(#amqp_params_network{username = <<"ea">>,
-                                                    password = <<"ea">>}) of
-        {ok, BrokerConnectionPid} ->
-            {ok, BrokerConnectionPid};
-        {error, econnrefused} ->
-            %% TODO retry mechanism using alarm handlers
-            {error, econnrefused}
-    end.
-
 %% ===================================================================
 %%  application callbacks
 %% ===================================================================
 
 start(_Type, _StartArgs) ->
-    {ok, PoolerSupervisorPid} = supervisor:start_link({?SCOPE, ?MODULE}, ?MODULE, []),
-    PoolConfig = [{name, rabbitmq_connections},
-                  {max_count, 10},
-                  {init_count, 10},
-                  {start_mfa,
-                    {?MODULE,
-                     start_broker_connection,
-                     []}}],
-    {ok, _PoolPid} = pooler:new_pool(PoolConfig),
-    {ok, PoolerSupervisorPid}.
+    {ok, _AppSupervisorPid} = supervisor:start_link(
+            {?SCOPE, ?MODULE}, ?MODULE, []).
 
 stop(_State) ->
     ok.
@@ -80,16 +48,11 @@ init([]) ->
 %% ===================================================================
 
 supervisor_child_specs() ->
-    lists:flatten([pooler_supervisor_child_spec()]).
+    [pooler_supervisor_child_spec()].
 
 pooler_supervisor_child_spec() ->
-    pooler_supervisor_child_spec(erlang:whereis(pooler_sup)).
-
-pooler_supervisor_child_spec(PoolerSup) when is_pid(PoolerSup) ->
-    [];
-pooler_supervisor_child_spec(undefined) ->
-    [{pooler_sup, {pooler_sup, start_link, []},
-        permanent, infinity, supervisor, [pooler_sup]}].
+    {pooler_sup, {pooler_sup, start_link, []},
+     permanent, infinity, supervisor, [pooler_sup]}.
 
 %% ===================================================================
 %%  Tests

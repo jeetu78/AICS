@@ -1,11 +1,11 @@
 %%%=============================================================================
 %%% @author Alexej Tessaro <alexej.tessaro@erlang-solutions.com>
-%%% @doc The Customer Scoring broker consumer supervisor
+%%% @doc The Customer Scoring broker consumer component supervisor
 %%%
 %%% @end
 %%%=============================================================================
 
--module(ea_cs_mq_consumer_sup).
+-module(ea_cs_mq_sup).
 
 -ifdef(TEST).
 -include_lib("eqc/include/eqc.hrl").
@@ -15,8 +15,7 @@
 -behaviour(supervisor).
 -export([init/1]).
 
--export([start_link/0,
-         new_broker_consumer/0]).
+-export([start_link/0]).
 
 -export_type([]).
 
@@ -27,7 +26,7 @@
 %% ===================================================================
 
 %%------------------------------------------------------------------------------
-%% @doc Starts a broker consumer supervisor.
+%% @doc Starts a broker consumer component supervisor.
 %%
 %% @end
 %%------------------------------------------------------------------------------
@@ -38,33 +37,29 @@ start_link() ->
     {ok, SupPid} = supervisor:start_link({?SCOPE, ?MODULE}, ?MODULE, []),
     {ok, SupPid}.
 
-%%------------------------------------------------------------------------------
-%% @doc Starts a new broker consumer.
-%%
-%% @end
-%%------------------------------------------------------------------------------
-
--spec new_broker_consumer() -> {ok, pid()}.
-
-new_broker_consumer() ->
-    {ok, BrokerConsumerChildPid} = supervisor:start_child(?MODULE, []),
-    {ok, BrokerConsumerChildPid}.
-
 %% ===================================================================
 %%  supervisor callbacks
 %% ===================================================================
 
 init([]) ->
-    BrokerConsumerChildSpec = broker_consumer_child_spec(),
-    {ok, {{simple_one_for_one, 10, 100}, [BrokerConsumerChildSpec]}}.
+    SupChildSpecs = supervisor_child_specs(),
+    {ok, {{one_for_all, 10, 100}, SupChildSpecs}}.
 
 %% ===================================================================
 %%  Internal Functions
 %% ===================================================================
 
-broker_consumer_child_spec() ->
-    {ea_cs_mq_consumer, {ea_cs_mq_consumer, start_link, []},
-        temporary, 5000, worker, [ea_cs_mq_consumer]}.
+supervisor_child_specs() ->
+    lists:flatten([broker_consumer_supervisor_child_spec(),
+                   broker_controller_child_spec()]).
+
+broker_consumer_supervisor_child_spec() ->
+    [{ea_cs_mq_consumer_sup, {ea_cs_mq_consumer_sup, start_link, []},
+        permanent, infinity, supervisor, [ea_cs_mq_consumer_sup]}].
+
+broker_controller_child_spec() ->
+    [{ea_cs_mq_controller, {ea_cs_mq_controller, start_link, []},
+        permanent, 5000, worker, [ea_cs_mq_controller]}].
 
 %% ===================================================================
 %%  Tests
@@ -79,10 +74,10 @@ sanity_test_() ->
 
 callback_test_() ->
 
-    BrokerConsumerChildSpec = broker_consumer_child_spec(),
+    ChildSpecs = supervisor_child_specs(),
 
     [
-        ?_assertMatch({ok, {{simple_one_for_one, 10, 100}, [BrokerConsumerChildSpec]}}, init([]))
+        ?_assertMatch({ok, {{one_for_all, 10, 100}, ChildSpecs}}, init([]))
     ].
 
 -endif.

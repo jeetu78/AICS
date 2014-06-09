@@ -3,14 +3,18 @@
         {description, "The Ancillary Inventory Control System broker interface application"},
         {vsn, "semver"},
         {registered, []},
-        {included_applications, [xmerl, rabbit_common, amqp_client]},
+        {included_applications, 
+            [
+                xmerl,
+                rabbit_common,
+                amqp_client
+            ]},
         {applications,
             [
                 kernel,
                 stdlib
             ]
         },
-        {mod, {ea_aics_mq_app, []}},
         {env, []}
     ]
 }.
