@@ -31,9 +31,8 @@
 -spec start_pool_member() -> {ok, pid()}.
 
 start_pool_member() ->
-    {ok, ConnectionPid} = mysql_conn:start_link("127.0.0.1", 3306, "root", "",
-        "AICS", fun(_, _, _, _) -> ok end, utf8, memsql),
-    {ok, ConnectionPid}.
+    {ok, _ConnectionPid} = mysql_conn:start_link("127.0.0.1", 3306, "root", "",
+        "AICS", fun(_, _, _, _) -> ok end, utf8).
 
 %%------------------------------------------------------------------------------
 %% @doc Executes a query on the storage system.
