@@ -103,49 +103,48 @@ delete(AncillaryId) ->
 %% ===================================================================
 
 do_create_transaction(ConnectionPid) ->
-    mysql_conn:transaction(ConnectionPid,
-        fun() ->
-            {ok, AncillaryId} = do_create(ConnectionPid),
-            {ok, Ancillary} = do_read(ConnectionPid, AncillaryId),
-            {atomic, {ok, Ancillary}}
-        end, self()).
+    {atomic, Response} =
+        mysql_conn:transaction(ConnectionPid,
+            fun() ->
+                {ok, AncillaryId} = do_create(ConnectionPid),
+                {ok, _Ancillary} = do_read(ConnectionPid, AncillaryId)
+            end, self()),
+    Response.
 
 do_update_transaction(ConnectionPid, AncillaryId, AncillaryUpdates) ->
-    mysql_conn:transaction(ConnectionPid,
-        fun() ->
-            case do_update(ConnectionPid, AncillaryId, AncillaryUpdates) of
-                ok ->
-                    {ok, Ancillary} = do_read(ConnectionPid, AncillaryId),
-                    {atomic, {ok, Ancillary}};
-                {error, not_found} ->
-                    {atomic, {error, not_found}}
-            end
-        end, self()).
+    {atomic, Response} =
+        mysql_conn:transaction(ConnectionPid,
+            fun() ->
+                case do_update(ConnectionPid, AncillaryId, AncillaryUpdates) of
+                    ok ->
+                        {ok, _Ancillary} = do_read(ConnectionPid, AncillaryId);
+                    {error, not_found} ->
+                        {error, not_found}
+                end
+            end, self()),
+    Response.
 
 do_create(ConnectionPid) ->
     AncillaryId = ea_aics_store:generate_uuid(),
-    Query = <<(<<"INSERT INTO ANCILLARY_MASTER (ANCILLARY_MASTER_UUID)
-                VALUES ('">>)/binary,
-              AncillaryId/binary,
-              (<<"')">>)/binary>>,
-    {updated, QueryResult} = mysql_conn:fetch(ConnectionPid, Query, self()),
+    AncillaryMasterCode = 111,
+    Query = sqerl:sql({insert, 'ANCILLARY_MASTER', [{'UUID', AncillaryId},
+                                                    {'ANC_MASTER_CODE', AncillaryMasterCode}]}, true),
+    {updated, QueryResult} = ea_aics_store:do_fetch(ConnectionPid, Query),
     #mysql_result{affectedrows = 1} = QueryResult,
     {ok, AncillaryId}.
 
 do_read(ConnectionPid) ->
-    Query = <<"SELECT ANCILLARY_MASTER_UUID FROM ANCILLARY_MASTER">>,
-    {data, QueryResult} = mysql_conn:fetch(ConnectionPid, Query, self()),
+    Query = sqerl:sql({select, ['UUID', 'ANC_MASTER_CODE'], {from, 'ANCILLARY_MASTER'}}, true),
+    {data, QueryResult} = ea_aics_store:do_fetch(ConnectionPid, Query),
     #mysql_result{fieldinfo = _Fields,
                   rows = _Rows} = QueryResult,
     Ancillaries = parse_query_result(QueryResult),
     {ok, Ancillaries}.
 
 do_read(ConnectionPid, AncillaryId) ->
-    Query = <<(<<"SELECT ANCILLARY_MASTER_UUID FROM ANCILLARY_MASTER WHERE
-                ANCILLARY_MASTER_UUID='">>)/binary,
-              AncillaryId/binary,
-              (<<"'">>)/binary>>,
-    {data, QueryResult} = mysql_conn:fetch(ConnectionPid, Query, self()),
+    Query = sqerl:sql({select, ['UUID', 'ANC_MASTER_CODE'],
+        {from, 'ANCILLARY_MASTER'}, {where, {'UUID', '=', AncillaryId}}}, true),
+    {data, QueryResult} = ea_aics_store:do_fetch(ConnectionPid, Query),
     #mysql_result{fieldinfo = _Fields,
                   rows = _Rows} = QueryResult,
     case parse_query_result(QueryResult) of
@@ -156,11 +155,9 @@ do_read(ConnectionPid, AncillaryId) ->
     end.
 
 do_update(ConnectionPid, AncillaryId, _AncillaryUpdates) ->
-    Query = <<(<<"UPDATE ANCILLARY_MASTER SET .. WHERE
-                ANCILLARY_MASTER_UUID='">>)/binary,
-              AncillaryId/binary,
-              (<<"'">>)/binary>>,
-    case mysql_conn:fetch(ConnectionPid, Query, self()) of
+    Query = sqerl:sql({update, 'ANCILLARY_MASTER', [],
+        {where, {'UUID', '=', AncillaryId}}}, true),
+    case ea_aics_store:do_fetch(ConnectionPid, Query) of
         {updated, #mysql_result{affectedrows = 1}} ->
             ok;
         {updated, #mysql_result{affectedrows = 0}} ->
@@ -168,11 +165,9 @@ do_update(ConnectionPid, AncillaryId, _AncillaryUpdates) ->
     end.
 
 do_delete(ConnectionPid, AncillaryId) ->
-    Query = <<(<<"DELETE FROM ANCILLARY_MASTER WHERE
-                ANCILLARY_MASTER_UUID='">>)/binary,
-              AncillaryId/binary,
-              (<<"'">>)/binary>>,
-    case mysql_conn:fetch(ConnectionPid, Query, self()) of
+    Query = sqerl:sql({delete, {from, 'ANCILLARY_MASTER'},
+        {where, {'UUID', '=', AncillaryId}}}, true),
+    case ea_aics_store:do_fetch(ConnectionPid, Query) of
         {updated, #mysql_result{affectedrows = 1}} ->
             ok;
         {updated, #mysql_result{affectedrows = 0}} ->
@@ -183,7 +178,7 @@ parse_query_result(#mysql_result{rows = QueryResultRows} = _QueryResult) ->
     [parse_query_result_row(QueryResultRow) || QueryResultRow <- QueryResultRows].
 
 parse_query_result_row(QueryResultRow) ->
-    [AncillaryId] = QueryResultRow,
+    [AncillaryId, _AncillaryMasterCode] = QueryResultRow,
     #ea_aics_ancillary{id = AncillaryId}.
 
 %% ===================================================================
@@ -208,10 +203,11 @@ module_test_() ->
         {"create",
             [
                 fun() ->
-                    AncillaryId = <<"111">>,
+                    AncillaryId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
 
-                    ok = meck:new(uuid, [non_strict]),
+                    ok = meck:new(uuid, [non_strict, passthrough]),
                     ok = meck:expect(uuid, get_v4, [], AncillaryId),
+                    ok = meck:expect(uuid, uuid_to_string, ['_', '_'], AncillaryId),
 
                     ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {updated, #mysql_result{affectedrows = 1}}),
 
@@ -230,14 +226,16 @@ module_test_() ->
         {"read",
             [
                 fun() ->
-                    AncillaryId_1 = <<"111">>,
-                    AncillaryId_2 = <<"222">>,
+                    AncillaryId_1 = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
+                    AncillaryId_2 = <<"c25a06bb2764493d97fbecbda9300b67">>,
+                    AncillaryMasterCode_1 = <<"111">>,
+                    AncillaryMasterCode_2 = <<"222">>,
                     Ancillary_1 = #ea_aics_ancillary{id = AncillaryId_1},
                     Ancillary_2 = #ea_aics_ancillary{id = AncillaryId_2},
                     Ancillaries = [Ancillary_1, Ancillary_2],
 
-                    ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {data, #mysql_result{rows = [[AncillaryId_1],
-                                                                                                      [AncillaryId_2]]}}),
+                    ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {data, #mysql_result{rows = [[AncillaryId_1, AncillaryMasterCode_1],
+                                                                                                      [AncillaryId_2, AncillaryMasterCode_2]]}}),
 
                     ?assertMatch({ok, Ancillaries}, do_read(ConnectionPid)),
 
@@ -248,10 +246,16 @@ module_test_() ->
         {"read",
             [
                 fun() ->
-                    AncillaryId = <<"111">>,
+                    AncillaryId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
+                    AncillaryMasterCode = <<"111">>,
                     Ancillary = #ea_aics_ancillary{id = AncillaryId},
 
-                    ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {data, #mysql_result{rows = [[AncillaryId]]}}),
+                    ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {data, #mysql_result{rows = [[AncillaryId, AncillaryMasterCode
+
+
+
+
+                        ]]}}),
 
                     ?assertMatch({ok, Ancillary}, do_read(ConnectionPid, AncillaryId)),
 
@@ -262,7 +266,7 @@ module_test_() ->
         {"read",
             [
                 fun() ->
-                    AncillaryId = <<"111">>,
+                    AncillaryId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
 
                     ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {data, #mysql_result{rows = []}}),
 
@@ -275,7 +279,7 @@ module_test_() ->
         {"update",
             [
                 fun() ->
-                    AncillaryId = <<"111">>,
+                    AncillaryId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
                     AncillaryUpdates = [],
 
                     ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {updated, #mysql_result{affectedrows = 1}}),
@@ -289,7 +293,7 @@ module_test_() ->
         {"delete",
             [
                 fun() ->
-                    AncillaryId = <<"111">>,
+                    AncillaryId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
 
                     ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {updated, #mysql_result{affectedrows = 1}}),
 
@@ -302,7 +306,7 @@ module_test_() ->
         {"delete",
             [
                 fun() ->
-                    AncillaryId = <<"111">>,
+                    AncillaryId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
 
                     ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {updated, #mysql_result{affectedrows = 0}}),
 

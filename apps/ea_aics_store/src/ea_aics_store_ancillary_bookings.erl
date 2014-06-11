@@ -103,45 +103,44 @@ delete(FlightId, AncillaryBookingId) ->
 %% ===================================================================
 
 do_create_transaction(ConnectionPid, FlightId, AllocatedAncillaryId) ->
-    mysql_conn:transaction(ConnectionPid,
-        fun() ->
-            {ok, AncillaryBookingId} = do_create(ConnectionPid, FlightId, AllocatedAncillaryId),
-            {ok, AncillaryBooking} = do_read(ConnectionPid, FlightId, AncillaryBookingId),
-            {atomic, {ok, AncillaryBooking}}
-        end, self()).
+    {atomic, Response} =
+        mysql_conn:transaction(ConnectionPid,
+            fun() ->
+                {ok, AncillaryBookingId} = do_create(ConnectionPid, FlightId, AllocatedAncillaryId),
+                {ok, AncillaryBooking} = do_read(ConnectionPid, FlightId, AncillaryBookingId),
+                {atomic, {ok, AncillaryBooking}}
+            end, self()),
+    Response.
 
 do_update_transaction(ConnectionPid, FlightId, AncillaryBookingId, AncillaryBookingUpdates) ->
-    mysql_conn:transaction(ConnectionPid,
-        fun() ->
-            case do_update(ConnectionPid, FlightId,
-                    AncillaryBookingId, AncillaryBookingUpdates) of
-                ok ->
-                    {ok, AncillaryBooking} = do_read(ConnectionPid, FlightId, AncillaryBookingId),
-                    {atomic, {ok, AncillaryBooking}};
-                {error, not_found} ->
-                    {atomic, {error, not_found}}
-            end
-        end, self()).
+    {atomic, Response} =
+        mysql_conn:transaction(ConnectionPid,
+            fun() ->
+                case do_update(ConnectionPid, FlightId,
+                        AncillaryBookingId, AncillaryBookingUpdates) of
+                    ok ->
+                        {ok, AncillaryBooking} = do_read(ConnectionPid, FlightId, AncillaryBookingId),
+                        {atomic, {ok, AncillaryBooking}};
+                    {error, not_found} ->
+                        {atomic, {error, not_found}}
+                end
+            end, self()),
+    Response.
 
 do_create(ConnectionPid, _FlightId, AllocatedAncillaryId) ->
     AncillaryBookingId = ea_aics_store:generate_uuid(),
-    Query = <<(<<"INSERT INTO ANCILLARY_TX (ANCILLARY_TX_UUID, ANCILLARY_INVENTORY_UUID)
-                VALUES ('">>)/binary,
-              AncillaryBookingId/binary,
-              (<<"','">>)/binary,
-              AllocatedAncillaryId/binary,
-              (<<"')">>)/binary>>,
+    Query = sqerl:sql({insert, 'ANCILLARY_TX', [{'UUID', AncillaryBookingId},
+                                                {'ANCILLARY_INVENTORY_UUID', AllocatedAncillaryId}]}, true),
     {updated, QueryResult} = mysql_conn:fetch(ConnectionPid, Query, self()),
     #mysql_result{affectedrows = 1} = QueryResult,
     {ok, AncillaryBookingId}.
 
 do_read(ConnectionPid, FlightId) ->
-    Query = <<(<<"SELECT ANCILLARY_TX.ANCILLARY_TX_UUID, ANCILLARY_TX.ANCILLARY_INVENTORY_UUID
-                FROM ANCILLARY_TX INNER JOIN ANCILLARY_INVENTORY WHERE
-                ANCILLARY_TX.ANCILLARY_INVENTORY_UUID=ANCILLARY_INVENTORY.ANCILLARY_INVENTORY_UUID
-                AND ANCILLARY_INVENTORY.FLIGHT_UUID='">>)/binary,
-              FlightId/binary,
-              (<<"'">>)/binary>>,
+    Query = sqerl:sql({select, [{{'AT', 'UUID'}, as, 'UUID'},
+        {{'AT', 'ANCILLARY_INVENTORY_UUID'}, as, 'ANCILLARY_INVENTORY_UUID'}],
+        {from, [{'ANCILLARY_TX', as, 'AT'}, {'ANCILLARY_INVENTORY', as, 'AI'}]},
+        {where, {'and', [{{'AT', 'ANCILLARY_INVENTORY_UUID'}, '=', {'AI', 'UUID'}},
+        {{'AI', 'FLIGHT_UID'}, '=', FlightId}]}}}, true),
     {data, QueryResult} = mysql_conn:fetch(ConnectionPid, Query, self()),
     #mysql_result{fieldinfo = _Fields,
                   rows = _Rows} = QueryResult,
@@ -149,11 +148,8 @@ do_read(ConnectionPid, FlightId) ->
     {ok, AncillaryBookings}.
 
 do_read(ConnectionPid, _FlightId, AncillaryBookingId) ->
-    Query = <<(<<"SELECT ANCILLARY_TX_UUID, ANCILLARY_INVENTORY_UUID
-                FROM ANCILLARY_TX WHERE
-                ANCILLARY_TX_UUID='">>)/binary,
-              AncillaryBookingId/binary,
-              (<<"'">>)/binary>>,
+    Query = sqerl:sql({select, ['UUID', 'ANCILLARY_INVENTORY_UUID'],
+        {from, 'ANCILLARY_TX'}, {where, {'UUID', '=', AncillaryBookingId}}}, true),
     {data, QueryResult} = mysql_conn:fetch(ConnectionPid, Query, self()),
     #mysql_result{fieldinfo = _Fields,
                   rows = _Rows} = QueryResult,
@@ -165,10 +161,8 @@ do_read(ConnectionPid, _FlightId, AncillaryBookingId) ->
     end.
 
 do_update(ConnectionPid, _FlightId, AncillaryBookingId, _AncillaryBookingUpdates) ->
-    Query = <<(<<"UPDATE ANCILLARY_TX SET .. WHERE
-                ANCILLARY_TX_UUID='">>)/binary,
-              AncillaryBookingId/binary,
-              (<<"'">>)/binary>>,
+    Query = sqerl:sql({update, 'ANCILLARY_TX', [],
+        {where, {'UUID', '=', AncillaryBookingId}}}, true),
     case mysql_conn:fetch(ConnectionPid, Query, self()) of
         {updated, #mysql_result{affectedrows = 1}} ->
             ok;
@@ -177,10 +171,8 @@ do_update(ConnectionPid, _FlightId, AncillaryBookingId, _AncillaryBookingUpdates
     end.
 
 do_delete(ConnectionPid, _FlightId, AncillaryBookingId) ->
-    Query = <<(<<"DELETE FROM ANCILLARY_TX WHERE
-                ANCILLARY_INVENTORY_UUID='">>)/binary,
-              AncillaryBookingId/binary,
-              (<<"'">>)/binary>>,
+    Query = sqerl:sql({delete, {from, 'ANCILLARY_TX'},
+        {where, {'UUID', '=', AncillaryBookingId}}}, true),
     case mysql_conn:fetch(ConnectionPid, Query, self()) of
         {updated, #mysql_result{affectedrows = 1}} ->
             ok;
@@ -192,10 +184,8 @@ parse_query_result(#mysql_result{rows = QueryResultRows} = _QueryResult) ->
     [parse_query_result_row(QueryResultRow) || QueryResultRow <- QueryResultRows].
 
 parse_query_result_row(QueryResultRow) ->
-    [AncillaryBookingId, AllocatedAncillaryId, AncillaryId] = QueryResultRow,
-    Ancillary = #ea_aics_ancillary{id = AncillaryId},
-    AllocatedAncillary = #ea_aics_allocated_ancillary{id = AllocatedAncillaryId,
-                                                      ancillary = Ancillary},
+    [AncillaryBookingId, AllocatedAncillaryId] = QueryResultRow,
+    AllocatedAncillary = #ea_aics_allocated_ancillary{id = AllocatedAncillaryId},
     #ea_aics_ancillary_booking{id = AncillaryBookingId,
                                allocated_ancillary = AllocatedAncillary}.
 
@@ -221,12 +211,13 @@ module_test_() ->
         {"create",
             [
                 fun() ->
-                    FlightId = <<"111">>,
-                    AllocatedAncillaryId = <<"111">>,
-                    AncillaryBookingId = <<"111">>,
+                    FlightId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
+                    AllocatedAncillaryId = <<"c25a06bb2764493d97fbecbda9300b67">>,
+                    AncillaryBookingId = <<"0575d95b0beb444186cd41a555f43daa">>,
 
-                    ok = meck:new(uuid, [non_strict]),
+                    ok = meck:new(uuid, [non_strict, passthrough]),
                     ok = meck:expect(uuid, get_v4, [], AncillaryBookingId),
+                    ok = meck:expect(uuid, uuid_to_string, ['_', '_'], AncillaryBookingId),
 
                     ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {updated, #mysql_result{affectedrows = 1}}),
 
@@ -245,27 +236,22 @@ module_test_() ->
         {"read",
             [
                 fun() ->
-                    FlightId = <<"111">>,
-                    AncillaryId_1 = <<"111">>,
-                    AncillaryId_2 = <<"222">>,
-                    Ancillary_1 = #ea_aics_ancillary{id = AncillaryId_1},
-                    Ancillary_2 = #ea_aics_ancillary{id = AncillaryId_2},
-                    AllocatedAncillaryId_1 = <<"111">>,
-                    AllocatedAncillaryId_2 = <<"222">>,
-                    AllocatedAncillary_1 = #ea_aics_allocated_ancillary{id = AllocatedAncillaryId_1,
-                                                                        ancillary = Ancillary_1},
-                    AllocatedAncillary_2 = #ea_aics_allocated_ancillary{id = AllocatedAncillaryId_2,
-                                                                        ancillary = Ancillary_2},
-                    AncillaryBookingId_1 = <<"111">>,
-                    AncillaryBookingId_2 = <<"222">>,
+                    FlightId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
+                    AllocatedAncillaryId_1 = <<"c25a06bb2764493d97fbecbda9300b67">>,
+                    AllocatedAncillaryId_2 = <<"0575d95b0beb444186cd41a555f43daa">>,
+                    AllocatedAncillary_1 = #ea_aics_allocated_ancillary{id = AllocatedAncillaryId_1},
+                    AllocatedAncillary_2 = #ea_aics_allocated_ancillary{id = AllocatedAncillaryId_2},
+                    AncillaryBookingId_1 = <<"228bd21f759f454e84e63e88301cd4f3">>,
+                    AncillaryBookingId_2 = <<"b5b89655228a4689bec675c5808f316d">>,
                     AncillaryBooking_1 = #ea_aics_ancillary_booking{id = AncillaryBookingId_1,
                                                                     allocated_ancillary = AllocatedAncillary_1},
                     AncillaryBooking_2 = #ea_aics_ancillary_booking{id = AncillaryBookingId_2,
                                                                     allocated_ancillary = AllocatedAncillary_2},
                     AncillaryBookings = [AncillaryBooking_1, AncillaryBooking_2],
 
-                    ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {data, #mysql_result{rows = [[AncillaryBookingId_1, AllocatedAncillaryId_1, AncillaryId_1],
-                                                                                                      [AncillaryBookingId_2, AllocatedAncillaryId_2, AncillaryId_2]]}}),
+                    ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'],
+                        {data, #mysql_result{rows = [[AncillaryBookingId_1, AllocatedAncillaryId_1],
+                                                     [AncillaryBookingId_2, AllocatedAncillaryId_2]]}}),
 
                     ?assertMatch({ok, AncillaryBookings}, do_read(ConnectionPid, FlightId)),
 
@@ -276,17 +262,15 @@ module_test_() ->
         {"read",
             [
                 fun() ->
-                    FlightId = <<"111">>,
-                    AncillaryId = <<"111">>,
-                    Ancillary = #ea_aics_ancillary{id = AncillaryId},
-                    AllocatedAncillaryId = <<"111">>,
-                    AllocatedAncillary = #ea_aics_allocated_ancillary{id = AllocatedAncillaryId,
-                                                                      ancillary = Ancillary},
-                    AncillaryBookingId = <<"111">>,
+                    FlightId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
+                    AllocatedAncillaryId = <<"228bd21f759f454e84e63e88301cd4f3">>,
+                    AllocatedAncillary = #ea_aics_allocated_ancillary{id = AllocatedAncillaryId},
+                    AncillaryBookingId = <<"b5b89655228a4689bec675c5808f316d">>,
                     AncillaryBooking = #ea_aics_ancillary_booking{id = AncillaryBookingId,
                                                                   allocated_ancillary = AllocatedAncillary},
 
-                    ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {data, #mysql_result{rows = [[AncillaryBookingId, AllocatedAncillaryId, AncillaryId]]}}),
+                    ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'],
+                        {data, #mysql_result{rows = [[AncillaryBookingId, AllocatedAncillaryId]]}}),
 
                     ?assertMatch({ok, AncillaryBooking}, do_read(ConnectionPid, FlightId, AncillaryBookingId)),
 
@@ -297,8 +281,8 @@ module_test_() ->
         {"read",
             [
                 fun() ->
-                    FlightId = <<"111">>,
-                    AncillaryBookingId = <<"111">>,
+                    FlightId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
+                    AncillaryBookingId = <<"b5b89655228a4689bec675c5808f316d">>,
 
                     ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {data, #mysql_result{rows = []}}),
 
@@ -311,8 +295,8 @@ module_test_() ->
         {"update",
             [
                 fun() ->
-                    FlightId = <<"111">>,
-                    AncillaryBookingId = <<"111">>,
+                    FlightId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
+                    AncillaryBookingId = <<"b5b89655228a4689bec675c5808f316d">>,
                     AncillaryBookingUpdates = [],
 
                     ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {updated, #mysql_result{affectedrows = 1}}),
@@ -326,8 +310,8 @@ module_test_() ->
         {"delete",
             [
                 fun() ->
-                    FlightId = <<"111">>,
-                    AncillaryBookingId = <<"111">>,
+                    FlightId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
+                    AncillaryBookingId = <<"b5b89655228a4689bec675c5808f316d">>,
 
                     ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {updated, #mysql_result{affectedrows = 1}}),
 
@@ -340,8 +324,8 @@ module_test_() ->
         {"delete",
             [
                 fun() ->
-                    FlightId = <<"111">>,
-                    AncillaryBookingId = <<"111">>,
+                    FlightId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
+                    AncillaryBookingId = <<"b5b89655228a4689bec675c5808f316d">>,
 
                     ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {updated, #mysql_result{affectedrows = 0}}),
 
