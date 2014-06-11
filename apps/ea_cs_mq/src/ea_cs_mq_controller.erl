@@ -1,10 +1,8 @@
 %%%=============================================================================
 %%% @author Alexej Tessaro <alexej.tessaro@erlang-solutions.com>
 %%% @doc The Customer Scoring broker controller
-%%%
 %%% @end
 %%%=============================================================================
-
 -module(ea_cs_mq_controller).
 
 -ifdef(TEST).
@@ -13,6 +11,7 @@
 -endif.
 
 -behaviour(gen_server).
+
 -export([init/1,
          handle_info/2,
          handle_call/3,
@@ -24,39 +23,39 @@
 
 -record(state, {consumers = dict:new()}).
 
-%% ===================================================================
+%%==============================================================================
 %%  API
-%% ===================================================================
+%%==============================================================================
 
 %%------------------------------------------------------------------------------
 %% @doc Starts a broker controller.
-%%
 %% @end
 %%------------------------------------------------------------------------------
 
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
-%% ===================================================================
+%%=============================================================================
 %%  gen_server callbacks
-%% ===================================================================
+%%=============================================================================
 
 init([]) ->
     {ok, #state{}, 0}.
 
 handle_info(timeout, State) ->
+    {ok, Consumers} = application:get_env(ea_cs_mq, num_consumers),
     NewState = lists:foldl(
         fun(_Seq, State_Acc) ->
             do_add_consumer(State_Acc)
-        end, State, lists:seq(1, 5)),
+        end, State, lists:seq(1, Consumers)),
     {noreply, NewState};
-handle_info({'DOWN', ConsumerMonitorRef, _Type, ConsumerPid, _Info}, State) ->
-    #state{consumers = Consumers} = State,
+handle_info({'DOWN', ConsumerRef, _Type, ConsumerPid, _Info},
+                #state{consumers = Consumers} = State) ->
+    {ok, Interval} = application:get_env(ea_cs_mq, restart_interval),
     case dict:find(ConsumerPid, Consumers) of
-        {ok, ConsumerMonitorRef} ->
-            timer:sleep(10000),
-            NewState = do_add_consumer(State),
-            {noreply, NewState};
+        {ok, ConsumerRef} ->
+            timer:sleep(Interval),
+            {noreply, do_add_consumer(State)};
         _Other ->
             {noreply, State}
     end;
@@ -75,12 +74,11 @@ code_change(_OldVsn, State, _Extra) ->
 terminate(_Reason, _State) ->
     ok.
 
-%% ===================================================================
+%%=============================================================================
 %%  Internal Functions
-%% ===================================================================
+%%=============================================================================
 
-do_add_consumer(State) ->
-    #state{consumers = Consumers} = State,
+do_add_consumer(#state{consumers = Consumers} = State) ->
     {ok, ConsumerPid} = ea_cs_mq_consumer_sup:new_broker_consumer(),
-    ConsumerMonitorRef = erlang:monitor(process, ConsumerPid),
-    State#state{consumers = dict:store(ConsumerPid, ConsumerMonitorRef, Consumers)}.
+    ConsumerRef = erlang:monitor(process, ConsumerPid),
+    State#state{consumers = dict:store(ConsumerPid, ConsumerRef, Consumers)}.

@@ -56,9 +56,14 @@ init([]) ->
 %% ===================================================================
 
 start_listeners() ->
+    {ok, HostString} = application:get_env(ea_aics_rest, ip),
+    % we want the IP in the config file to be a string.
+    {ok, Host} = inet_parse:address(HostString),
+    {ok, Port} = application:get_env(ea_aics_rest, port),
     GConfList = [],
     AICS_SConfList = [
-        {listen, {0, 0, 0, 0}},
+        {listen, Host},
+        {port, Port},
         {appmods, [
             {"/", ea_aics_rest}]}
         ],

@@ -1,10 +1,8 @@
 %%%=============================================================================
 %%% @author Alexej Tessaro <alexej.tessaro@erlang-solutions.com>
 %%% @doc The Ancillary Inventory Control System store interface
-%%%
 %%% @end
 %%%=============================================================================
-
 -module(ea_aics_store).
 
 -ifdef(TEST).
@@ -23,23 +21,24 @@
 %% ===================================================================
 
 %%------------------------------------------------------------------------------
-%% @doc Starts a member of the store pool.
-%%
+%% @doc Starts a member of the store pool. Called by the Pooler app.
 %% @end
 %%------------------------------------------------------------------------------
-
 -spec start_pool_member() -> {ok, pid()}.
 
 start_pool_member() ->
-    {ok, _ConnectionPid} = mysql_conn:start_link("127.0.0.1", 3306, "root", "",
-        "AICS", fun(_, _, _, _) -> ok end, utf8).
+    {ok, Host} = application:get_env(ea_aics_store, host),
+    {ok, Port} = application:get_env(ea_aics_store, port),
+    {ok, User} = application:get_env(ea_aics_store, username),
+    {ok, Pass} = application:get_env(ea_aics_store, password),
+    {ok, DbName} = application:get_env(ea_aics_store, db_name),
+    {ok, _ConnectionPid} = mysql_conn:start_link(Host, Port, User, Pass,
+        DbName, fun(_, _, _, _) -> ok end, utf8).
 
 %%------------------------------------------------------------------------------
 %% @doc Executes a query on the storage system.
-%%
 %% @end
 %%------------------------------------------------------------------------------
-
 -spec do_query(fun()) -> term().
 
 do_query(OperationFun) ->
@@ -50,10 +49,8 @@ do_query(OperationFun) ->
 
 %%------------------------------------------------------------------------------
 %% @doc Generates a UUID (Globally Unique Identifier)
-%%
 %% @end
 %%------------------------------------------------------------------------------
-
 -spec generate_uuid() -> binary().
 
 generate_uuid() ->

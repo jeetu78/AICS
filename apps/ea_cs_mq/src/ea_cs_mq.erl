@@ -1,10 +1,8 @@
 %%%=============================================================================
 %%% @author Alexej Tessaro <alexej.tessaro@erlang-solutions.com>
 %%% @doc The Customer Scoring broker interface
-%%%
 %%% @end
 %%%=============================================================================
-
 -module(ea_cs_mq).
 
 -ifdef(TEST).
@@ -24,18 +22,22 @@
 %% ===================================================================
 
 %%------------------------------------------------------------------------------
-%% @doc Starts a member of the broker pool.
-%%
+%% @doc Starts a member of the broker pool. This is called by the Pooler.
 %% @end
 %%------------------------------------------------------------------------------
-
 -spec start_pool_member() -> {ok, pid()}.
 
 start_pool_member() ->
-    ConnectionConfig = #amqp_params_network{username = <<"ea">>,
-                                            password = <<"ea">>},
-    {ok, ConnectionPid} = amqp_connection:start(ConnectionConfig),
-    {ok, ConnectionPid}.
+    {ok, User} = application:get_env(ea_cs_mq, username),
+    {ok, Pass} = application:get_env(ea_cs_mq, password),
+    {ok, Host} = application:get_env(ea_cs_mq, host),
+    {ok, Port} = application:get_env(ea_cs_mq, port),
+    % We are just not using the IP and Port variables now.
+    Config = #amqp_params_network{username = list_to_binary(User),
+                                  password = list_to_binary(Pass),
+                                  host = Host,
+                                  port = Port},
+    {ok, _Conn} = amqp_connection:start(Config).
 
 %% ===================================================================
 %%  Tests
