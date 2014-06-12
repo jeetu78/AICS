@@ -71,7 +71,11 @@ sanity_test_() ->
 
 app_callback_test_() ->
     [
-        ?_assertMatch({ok, Pid} when is_pid(Pid), start(temporary, [])),
+        ?_assertMatch({ok, Pid} when is_pid(Pid),
+                    begin
+                        application:load(ea_cs_mq),
+                        start(temporary, [])
+                    end),
         ?_assertMatch(ok, stop([]))
     ].
 

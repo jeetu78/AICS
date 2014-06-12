@@ -16,6 +16,13 @@
             ]
         },
         {mod, {ea_cs_mq_app, []}},
-        {env, []}
+        {env, [
+                {host, "127.0.0.1"},
+                {port, 5672},
+                {username, "ea"},
+                {password, "ea"},
+                {num_consumers, 5},
+                {restart_interval, 10000}
+                ]}
     ]
 }.

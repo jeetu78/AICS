@@ -91,7 +91,12 @@ sanity_test_() ->
 callback_test_() ->
     [
         ?_assertMatch(ok, stop([])),
-        ?_assertMatch({ok, Pid} when is_pid(Pid), start(temporary, [])),
+        ?_assertMatch({ok, Pid} when is_pid(Pid),
+                      begin
+                        application:load(ea_aics_rest),
+                        start(temporary, [])
+                      end),
+      % ?_assertMatch(ok, application:start(ea_aics_rest)),
         ?_assertMatch({ok, {{one_for_one, 0, 1}, []}}, init([]))
     ].
 
