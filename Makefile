@@ -13,7 +13,7 @@ deps:
 	@$(REBAR) get-deps
 
 compile: deps
-	@$(REBAR) compile -r -v
+	@$(REBAR) compile
 
 $(DEPSOLVER_PLT):
 	@$(DIALYZER) --output_plt $(DEPSOLVER_PLT) --build_plt \
@@ -24,11 +24,11 @@ dialyze: $(DEPSOLVER_PLT) compile
 		-Wunmatched_returns -Werror_handling -Wrace_conditions -Wno_undefined_callbacks
 
 test: compile
-	@$(REBAR) -r -v -DTEST eunit skip_deps=true verbose=0
+	@$(REBAR) -v  eunit skip_deps=true verbose=0
 	ct_run -dir apps/*/itest -pa ebin -verbosity 0 -logdir .ct/logs -erl_args +K true +A 10
 
 doc: compile
-	@$(REBAR) -r doc skip_deps=true
+	@$(REBAR) doc skip_deps=true
 
 validate: dialyze test
 
@@ -44,7 +44,7 @@ relup: clean validate
 	@$(RELX) release relup tar
 
 clean:
-	@$(REBAR) -r clean
+	@$(REBAR) clean
 
 distclean: clean
 	rm -rvf ./_rel*
