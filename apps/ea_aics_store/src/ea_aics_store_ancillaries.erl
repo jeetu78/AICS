@@ -13,11 +13,13 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([create/0,
+-export([create/1,
          read/0,
          read/1,
          update/2,
-         delete/1]).
+         delete/1,
+         record_fields_keys/1,
+         parse_query_result_row/1]).
 
 -export_type([]).
 
@@ -30,21 +32,19 @@
 
 %%------------------------------------------------------------------------------
 %% @doc Creates an ancillary in the store.
-%%
 %% @end
 %%------------------------------------------------------------------------------
 
--spec create() -> {ok, #ea_aics_ancillary{}}.
+-spec create(term()) -> {ok, #ea_aics_ancillary{}}.
 
-create() ->
+create(AncillaryInputs) ->
     ea_aics_store:do_query(
         fun(ConnectionPid) ->
-            do_create_transaction(ConnectionPid)
+            do_create_transaction(ConnectionPid, AncillaryInputs)
         end).
 
 %%------------------------------------------------------------------------------
 %% @doc Reads the ancillaries from the store.
-%%
 %% @end
 %%------------------------------------------------------------------------------
 
@@ -58,7 +58,6 @@ read() ->
 
 %%------------------------------------------------------------------------------
 %% @doc Reads the ancillary from the store.
-%%
 %% @end
 %%------------------------------------------------------------------------------
 
@@ -72,7 +71,6 @@ read(AncillaryId) ->
 
 %%------------------------------------------------------------------------------
 %% @doc Updates the ancillary in the store.
-%%
 %% @end
 %%------------------------------------------------------------------------------
 
@@ -86,7 +84,6 @@ update(AncillaryId, AncillaryUpdates) ->
 
 %%------------------------------------------------------------------------------
 %% @doc Deletes the ancillary from the store.
-%%
 %% @end
 %%------------------------------------------------------------------------------
 
@@ -98,15 +95,25 @@ delete(AncillaryId) ->
             do_delete(ConnectionPid, AncillaryId)
         end).
 
+%%------------------------------------------------------------------------------
+%% @doc Exports the ancillary storage structure.
+%% @end
+%%------------------------------------------------------------------------------
+
+-spec record_fields_keys(atom()) -> [{atom(), atom()}].
+
+record_fields_keys(Prefix) ->
+    [{Prefix, Key} || Key <- record_fields_keys()].
+
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
 
-do_create_transaction(ConnectionPid) ->
+do_create_transaction(ConnectionPid, AncillaryInputs) ->
     {atomic, Response} =
         mysql_conn:transaction(ConnectionPid,
             fun() ->
-                {ok, AncillaryId} = do_create(ConnectionPid),
+                {ok, AncillaryId} = do_create(ConnectionPid, AncillaryInputs),
                 {ok, _Ancillary} = do_read(ConnectionPid, AncillaryId)
             end, self()),
     Response.
@@ -124,17 +131,17 @@ do_update_transaction(ConnectionPid, AncillaryId, AncillaryUpdates) ->
             end, self()),
     Response.
 
-do_create(ConnectionPid) ->
+do_create(ConnectionPid, AncillaryInputs) ->
     AncillaryId = ea_aics_store:generate_uuid(),
-    AncillaryMasterCode = 111,
-    Query = sqerl:sql({insert, 'ANCILLARY_MASTER', [{'UUID', AncillaryId},
-                                                    {'ANC_MASTER_CODE', AncillaryMasterCode}]}, true),
+    RecordFieldsInputs = record_fields(AncillaryId, AncillaryInputs),
+    Query = sqerl:sql({insert, 'ANCILLARY_MASTER', RecordFieldsInputs}, true),
     {updated, QueryResult} = ea_aics_store:do_fetch(ConnectionPid, Query),
     #mysql_result{affectedrows = 1} = QueryResult,
     {ok, AncillaryId}.
 
 do_read(ConnectionPid) ->
-    Query = sqerl:sql({select, ['UUID', 'ANC_MASTER_CODE'], {from, 'ANCILLARY_MASTER'}}, true),
+    ResultFieldsKeys = result_fields_keys(),
+    Query = sqerl:sql({select, ResultFieldsKeys, {from, 'ANCILLARY_MASTER'}}, true),
     {data, QueryResult} = ea_aics_store:do_fetch(ConnectionPid, Query),
     #mysql_result{fieldinfo = _Fields,
                   rows = _Rows} = QueryResult,
@@ -142,8 +149,9 @@ do_read(ConnectionPid) ->
     {ok, Ancillaries}.
 
 do_read(ConnectionPid, AncillaryId) ->
-    Query = sqerl:sql({select, ['UUID', 'ANC_MASTER_CODE'],
-        {from, 'ANCILLARY_MASTER'}, {where, {'UUID', '=', AncillaryId}}}, true),
+    ResultFieldsKeys = result_fields_keys(),
+    Query = sqerl:sql({select, ResultFieldsKeys, {from, 'ANCILLARY_MASTER'},
+        {where, {'UUID', '=', AncillaryId}}}, true),
     {data, QueryResult} = ea_aics_store:do_fetch(ConnectionPid, Query),
     #mysql_result{fieldinfo = _Fields,
                   rows = _Rows} = QueryResult,
@@ -178,8 +186,44 @@ parse_query_result(#mysql_result{rows = QueryResultRows} = _QueryResult) ->
     [parse_query_result_row(QueryResultRow) || QueryResultRow <- QueryResultRows].
 
 parse_query_result_row(QueryResultRow) ->
-    [AncillaryId, _AncillaryMasterCode] = QueryResultRow,
-    #ea_aics_ancillary{id = AncillaryId}.
+    [AncillaryId, Anc_MasterCode, Anc_ServiceProviderId, Anc_SubCode, Anc_GroupCode,
+        Anc_SubGroup, Anc_Description1, Anc_Description2, Anc_ImageThumbnailUrl,
+        Anc_ImageLargeUrl, Anc_ToolTip, Anc_Price, Anc_Currency, Anc_Tax, Anc_IsDiscount,
+        Anc_DiscountDesc, Anc_DiscountPcnt, Anc_CommercialName, Anc_RFIC,
+        Anc_ModifiedTime] = QueryResultRow,
+    #ea_aics_ancillary{id = AncillaryId,
+                       master_code = Anc_MasterCode,
+                       service_provider_id = Anc_ServiceProviderId,
+                       sub_code = Anc_SubCode,
+                       group_code = Anc_GroupCode,
+                       sub_group = Anc_SubGroup,
+                       description1 = Anc_Description1,
+                       description2 = Anc_Description2,
+                       image_thumbnail_url = Anc_ImageThumbnailUrl,
+                       image_large_url = Anc_ImageLargeUrl,
+                       tooltip = Anc_ToolTip,
+                       price = Anc_Price,
+                       currency = Anc_Currency,
+                       tax = Anc_Tax,
+                       is_discount = Anc_IsDiscount,
+                       discount_desc = Anc_DiscountDesc,
+                       discount_pcnt = Anc_DiscountPcnt,
+                       commercial_name = Anc_CommercialName,
+                       rfic = Anc_RFIC,
+                       modified_time = Anc_ModifiedTime}.
+
+record_fields_keys() ->
+    ['UUID', 'ANC_MASTER_CODE', 'SERVICE_PROVIDER_ID', 'SUB_CODE', 'GROUP_CODE',
+        'SUB_GROUP', 'DESCRIPTION1', 'DESCRIPTION2', 'IMAGE_THUBNAIL_URL',
+        'IMAGE_LARGE_URL', 'IMAGE_TOOL_TIP', 'PRICE', 'CURRENCY', 'TAX',
+        'IS_DISCOUNT', 'DISCOUNT_DESC', 'DISCOUNT_PCNT', 'COMMERCIAL_NAME', 'RFIC',
+        'MODIFIED_TIME'].
+
+record_fields(AncillaryId, AncillaryInputs) ->
+    lists:zip(record_fields_keys(), [AncillaryId | AncillaryInputs]).
+
+result_fields_keys() ->
+    record_fields_keys().
 
 %% ===================================================================
 %%  Tests
@@ -204,6 +248,7 @@ module_test_() ->
             [
                 fun() ->
                     AncillaryId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
+                    AncillaryInputs = ea_aics_store_test:ancillary_input(),
 
                     ok = meck:new(uuid, [non_strict, passthrough]),
                     ok = meck:expect(uuid, get_v4, [], AncillaryId),
@@ -211,7 +256,7 @@ module_test_() ->
 
                     ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {updated, #mysql_result{affectedrows = 1}}),
 
-                    ?assertMatch({ok, AncillaryId}, do_create(ConnectionPid)),
+                    ?assertMatch({ok, AncillaryId}, do_create(ConnectionPid, AncillaryInputs)),
 
                     ok = meck:wait(uuid, get_v4, '_', 1000),
 
@@ -228,16 +273,12 @@ module_test_() ->
                 fun() ->
                     AncillaryId_1 = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
                     AncillaryId_2 = <<"c25a06bb2764493d97fbecbda9300b67">>,
-                    AncillaryMasterCode_1 = <<"111">>,
-                    AncillaryMasterCode_2 = <<"222">>,
-                    Ancillary_1 = #ea_aics_ancillary{id = AncillaryId_1},
-                    Ancillary_2 = #ea_aics_ancillary{id = AncillaryId_2},
-                    Ancillaries = [Ancillary_1, Ancillary_2],
 
-                    ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {data, #mysql_result{rows = [[AncillaryId_1, AncillaryMasterCode_1],
-                                                                                                      [AncillaryId_2, AncillaryMasterCode_2]]}}),
+                    AncillaryRows = ea_aics_store_test:ancillary_rows([AncillaryId_1, AncillaryId_2]),
+                    ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {data, #mysql_result{rows = AncillaryRows}}),
 
-                    ?assertMatch({ok, Ancillaries}, do_read(ConnectionPid)),
+                    ?assertMatch({ok, [#ea_aics_ancillary{id = AncillaryId_1},
+                                       #ea_aics_ancillary{id = AncillaryId_2}]}, do_read(ConnectionPid)),
 
                     ok = meck:wait(mysql_conn, fetch, '_', 1000)
                 end
@@ -247,17 +288,11 @@ module_test_() ->
             [
                 fun() ->
                     AncillaryId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
-                    AncillaryMasterCode = <<"111">>,
-                    Ancillary = #ea_aics_ancillary{id = AncillaryId},
 
-                    ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {data, #mysql_result{rows = [[AncillaryId, AncillaryMasterCode
+                    AncillaryRows = ea_aics_store_test:ancillary_rows([AncillaryId]),
+                    ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {data, #mysql_result{rows = AncillaryRows}}),
 
-
-
-
-                        ]]}}),
-
-                    ?assertMatch({ok, Ancillary}, do_read(ConnectionPid, AncillaryId)),
+                    ?assertMatch({ok, #ea_aics_ancillary{id = AncillaryId}}, do_read(ConnectionPid, AncillaryId)),
 
                     ok = meck:wait(mysql_conn, fetch, '_', 1000)
                 end

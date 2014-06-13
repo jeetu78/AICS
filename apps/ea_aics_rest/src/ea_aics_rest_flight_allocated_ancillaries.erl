@@ -42,7 +42,7 @@ process('POST', WebArg, ["flights", Uri_FlightId, "allocated-ancillaries"] = Pat
     {<<"id">>, JsonView_AncillaryId} = lists:keyfind(<<"id">>, 1, JsonView_AncillaryResource),
     FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
     {ok, #ea_aics_allocated_ancillary{} = AllocatedAncillary} =
-        ea_aics_store_allocated_ancillaries:create(FlightId, JsonView_AncillaryId),
+        ea_aics_store_allocated_ancillaries:create(FlightId, JsonView_AncillaryId, []),
     AllocatedAncillaryId = AllocatedAncillary#ea_aics_allocated_ancillary.id,
     ResourceInstanceUri = resource_instance_uri(WebArg, Path, FlightId, AllocatedAncillaryId),
     HttpStatus = {status, ?HTTP_201},
@@ -152,7 +152,7 @@ module_test_() ->
                     ResourceId = <<"111">>,
                     Resource = #ea_aics_allocated_ancillary{id = ResourceId},
 
-                    ok = meck:expect(ea_aics_store_allocated_ancillaries, create, ['_', '_'], {ok, Resource}),
+                    ok = meck:expect(ea_aics_store_allocated_ancillaries, create, ['_', '_', '_'], {ok, Resource}),
 
                     HttpRequestMethod = 'POST',
                     HttpRequestContentBody = <<"{\"ancillary\": {\"id\": \"111\"}}">>,
