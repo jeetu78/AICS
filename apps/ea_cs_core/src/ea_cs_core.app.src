@@ -10,7 +10,8 @@
         {applications,
             [
                 kernel,
-                stdlib
+                stdlib,
+                lager
             ]
         },
         {mod, {ea_cs_core_app, []}},
