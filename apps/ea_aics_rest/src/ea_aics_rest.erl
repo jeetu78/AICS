@@ -49,14 +49,14 @@ dispatch(Method, WebArg,
 dispatch(_Method, _WebArg, _Path) ->
     [{status, ?HTTP_404}].
 
+%simple example metrics for now.
 post_process(Result) ->
     case proplists:get_value(status, Result) of
         V when V == ?HTTP_200; V == ?HTTP_201; V == ?HTTP_204 ->
             exometer:update(?C_OK_REQ, 1);
-        V when V == ?HTTP_404; V == ?HTTP_405 ->
+        ?HTTP_405 ->
             exometer:update(?C_INVALID_REQ, 1);
         _V ->
-            % for the moment we do not count failed requests.
             ok
     end,
     Result.

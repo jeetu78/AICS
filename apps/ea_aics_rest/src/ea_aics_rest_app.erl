@@ -75,7 +75,7 @@ start_listeners() ->
     ok = yaws_api:setconf(GConf, SConf).
 
 init_rest_metrics() ->
-    [exometer:new(Name, counter) || Name <- counters()].
+    [ok = exometer:new(Name, counter) || Name <- counters()].
 
 counters() ->
     [?C_TOT_REQ, ?C_OK_REQ, ?C_NOK_REQ, ?C_INVALID_REQ].
@@ -94,12 +94,17 @@ sanity_test_() ->
 callback_test_() ->
     [
         ?_assertMatch(ok, stop([])),
+        % TODO: Decide whether to remove this.
         ?_assertMatch({ok, Pid} when is_pid(Pid),
                       begin
-                        application:load(ea_aics_rest),
+                        ok = application:load(ea_aics_rest),
+                        ok = application:start(compiler),
+                        ok = application:start(syntax_tools, temporary),
+                        ok = application:start(goldrush, temporary),
+                        ok = application:start(lager),
+                        ok = application:start(exometer, temporary),
                         start(temporary, [])
                       end),
-      % ?_assertMatch(ok, application:start(ea_aics_rest)),
         ?_assertMatch({ok, {{one_for_one, 0, 1}, []}}, init([]))
     ].
 

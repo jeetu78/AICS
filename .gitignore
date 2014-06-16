@@ -7,3 +7,4 @@ apps/*/doc
 *.beam
 _rel/
 .vagrant
+apps/ea_aics_rest/log/*
