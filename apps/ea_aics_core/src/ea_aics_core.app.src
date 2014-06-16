@@ -13,7 +13,8 @@
         {applications,
             [
                 kernel,
-                stdlib
+                stdlib,
+                lager
             ]
         },
         {mod, {ea_aics_core_app, []}},

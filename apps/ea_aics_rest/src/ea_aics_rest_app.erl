@@ -32,7 +32,7 @@
 
 start(_Type, _StartArgs) ->
     {ok, Pid} = supervisor:start_link({?SCOPE, ?MODULE}, ?MODULE, []),
-    init_rest_metrics(),
+    ok = init_rest_metrics(),
     ok = start_listeners(),
     {ok, Pid}.
 
@@ -75,7 +75,7 @@ start_listeners() ->
     ok = yaws_api:setconf(GConf, SConf).
 
 init_rest_metrics() ->
-    [ok = exometer:new(Name, counter) || Name <- counters()].
+    ok = lists:foreach(fun(Name) -> exometer:new(Name, counter) end, counters()).
 
 counters() ->
     [?C_TOT_REQ, ?C_OK_REQ, ?C_NOK_REQ, ?C_INVALID_REQ].
