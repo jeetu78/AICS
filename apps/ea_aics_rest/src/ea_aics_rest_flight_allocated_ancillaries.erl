@@ -36,19 +36,28 @@
 -spec process(atom(), #arg{}, [string()]) -> list().
 
 process('POST', WebArg, ["flights", Uri_FlightId, "allocated-ancillaries"] = Path) ->
+    %% TODO JSON input processing here
+    Inputs = [_AllocatedAncillaryInventoryId = <<"foo">>,
+     _AllocatedAncillaryAllocatedQuantity = 1,
+     _AllocatedAncillaryAvailableQuantity = 1,
+     _AllocatedAncillaryModifiedTime = <<"foo">>],
     HttpRequestContentBody = WebArg#arg.clidata,
-    JsonView = ea_aics_rest_utils:json_decode(HttpRequestContentBody),
-    {<<"ancillary">>, JsonView_AncillaryResource} = lists:keyfind(<<"ancillary">>, 1, JsonView),
-    {<<"id">>, JsonView_AncillaryId} = lists:keyfind(<<"id">>, 1, JsonView_AncillaryResource),
+    JsonInput = ea_aics_rest_utils:json_decode(HttpRequestContentBody),
+    {<<"ancillary">>, JsonInput_AncillaryResource} = lists:keyfind(<<"ancillary">>, 1, JsonInput),
+    {<<"id">>, JsonInput_AncillaryId} = lists:keyfind(<<"id">>, 1, JsonInput_AncillaryResource),
     FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
     {ok, #ea_aics_allocated_ancillary{} = AllocatedAncillary} =
-        ea_aics_store_allocated_ancillaries:create(FlightId, JsonView_AncillaryId, []),
+        ea_aics_store_allocated_ancillaries:create(FlightId, JsonInput_AncillaryId, Inputs),
+    JsonView = json_view_allocated_ancillary(WebArg, Path, FlightId, AllocatedAncillary),
+    HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
+    HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
+    HttpContent = {content, HttpContentType, HttpContentBody},
     AllocatedAncillaryId = AllocatedAncillary#ea_aics_allocated_ancillary.id,
     ResourceInstanceUri = resource_instance_uri(WebArg, Path, FlightId, AllocatedAncillaryId),
     HttpStatus = {status, ?HTTP_201},
     HeaderLocation = {"Location", ResourceInstanceUri},
     HttpHeaders = {allheaders, [{header, HeaderLocation}]},
-    [HttpStatus, HttpHeaders];
+    [HttpContent, HttpStatus, HttpHeaders];
 process('GET', WebArg, ["flights", Uri_FlightId, "allocated-ancillaries"] = Path) ->
     FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
     {ok, AllocatedAncillaries} = ea_aics_store_allocated_ancillaries:read(FlightId),
@@ -96,6 +105,7 @@ json_view_allocated_ancillary(WebArg, Path, FlightId, #ea_aics_allocated_ancilla
     AllocatedAncillary_AncillaryJsonView =
         ea_aics_rest_ancillaries:json_view_ancillary(WebArg, Path, AllocatedAncillary_Ancillary),
     [{<<"href">>, ResourceUri},
+     {<<"id">>, AllocatedAncillaryId},
      {<<"ancillary">>, AllocatedAncillary_AncillaryJsonView}].
 
 %%------------------------------------------------------------------------------
@@ -117,8 +127,10 @@ json_view_allocated_ancillaries(WebArg, Path, FlightId, AllocatedAncillaries) wh
 
 resource_collection_uri(_WebArg, _Path, FlightId) ->
     % TODO ResourceContext should be managed by web configuration
-    ResourceContext = <<(<<"http://localhost/flights">>)/binary, FlightId/binary>>,
     Separator = <<"/">>,
+    ResourceContext = <<(<<"http://localhost:8000/flights">>)/binary,
+                         Separator/binary,
+                         FlightId/binary>>,
     ResourceCollection = <<"allocated-ancillaries">>,
     <<ResourceContext/binary, Separator/binary, ResourceCollection/binary>>.
 
@@ -149,8 +161,8 @@ module_test_() ->
         {"post",
             [
                 fun() ->
-                    ResourceId = <<"111">>,
-                    Resource = #ea_aics_allocated_ancillary{id = ResourceId},
+                    Resource = #ea_aics_allocated_ancillary{id = <<"111">>,
+                                                            ancillary = #ea_aics_ancillary{id = <<"111">>}},
 
                     ok = meck:expect(ea_aics_store_allocated_ancillaries, create, ['_', '_', '_'], {ok, Resource}),
 
@@ -163,7 +175,8 @@ module_test_() ->
 
                     ok = meck:wait(ea_aics_store_allocated_ancillaries, create, '_', 1000),
 
-                    [HttpResponseStatus, HttpResponseHeaders] = HttpResponse,
+                    [HttpResponseContent, HttpResponseStatus, HttpResponseHeaders] = HttpResponse,
+                    ?assertMatch({content, ?HTTP_CONTENT_TYPE_JSON, _HttpResponseContentBody}, HttpResponseContent),
                     ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus),
                     ?assertMatch({allheaders, [{header, {"Location", _ResourceInstanceUri}}]}, HttpResponseHeaders)
                 end

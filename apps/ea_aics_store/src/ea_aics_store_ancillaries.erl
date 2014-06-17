@@ -19,6 +19,7 @@
          update/2,
          delete/1,
          record_fields_keys/1,
+         result_fields_keys/0,
          parse_query_result_row/1]).
 
 -export_type([]).
@@ -96,7 +97,7 @@ delete(AncillaryId) ->
         end).
 
 %%------------------------------------------------------------------------------
-%% @doc Exports the ancillary storage structure.
+%% @doc Exports the ancillary record fields structure.
 %% @end
 %%------------------------------------------------------------------------------
 
@@ -104,6 +105,16 @@ delete(AncillaryId) ->
 
 record_fields_keys(Prefix) ->
     [{Prefix, Key} || Key <- record_fields_keys()].
+
+%%------------------------------------------------------------------------------
+%% @doc Exports the ancillary result fields structure.
+%% @end
+%%------------------------------------------------------------------------------
+
+-spec result_fields_keys() -> [{atom(), atom()}].
+
+result_fields_keys() ->
+    record_fields_keys('AM').
 
 %% ===================================================================
 %% Internal functions
@@ -141,7 +152,8 @@ do_create(ConnectionPid, AncillaryInputs) ->
 
 do_read(ConnectionPid) ->
     ResultFieldsKeys = result_fields_keys(),
-    Query = sqerl:sql({select, ResultFieldsKeys, {from, 'ANCILLARY_MASTER'}}, true),
+    Query = sqerl:sql({select, ResultFieldsKeys,
+        {from, {'ANCILLARY_MASTER', as, 'AM'}}}, true),
     {data, QueryResult} = ea_aics_store:do_fetch(ConnectionPid, Query),
     #mysql_result{fieldinfo = _Fields,
                   rows = _Rows} = QueryResult,
@@ -150,7 +162,8 @@ do_read(ConnectionPid) ->
 
 do_read(ConnectionPid, AncillaryId) ->
     ResultFieldsKeys = result_fields_keys(),
-    Query = sqerl:sql({select, ResultFieldsKeys, {from, 'ANCILLARY_MASTER'},
+    Query = sqerl:sql({select, ResultFieldsKeys,
+        {from, {'ANCILLARY_MASTER', as, 'AM'}},
         {where, {'UUID', '=', AncillaryId}}}, true),
     {data, QueryResult} = ea_aics_store:do_fetch(ConnectionPid, Query),
     #mysql_result{fieldinfo = _Fields,
@@ -221,9 +234,6 @@ record_fields_keys() ->
 
 record_fields(AncillaryId, AncillaryInputs) ->
     lists:zip(record_fields_keys(), [AncillaryId | AncillaryInputs]).
-
-result_fields_keys() ->
-    record_fields_keys().
 
 %% ===================================================================
 %%  Tests

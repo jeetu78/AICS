@@ -21,11 +21,13 @@ $(DEPSOLVER_PLT):
 
 dialyze: $(DEPSOLVER_PLT) compile
 	@$(DIALYZER) --plt $(DEPSOLVER_PLT) --src apps/*/src -I apps/ -I deps/ \
-		-Wunmatched_returns -Werror_handling -Wrace_conditions -Wno_undefined_callbacks
+		-Wunmatched_returns -Werror_handling -Wrace_conditions \
+		-Wno_undefined_callbacks
 
 test: compile
-	@$(REBAR) -v eunit skip_deps=true verbose=0
-	ct_run -dir apps/*/itest -pa ebin -verbosity 0 -logdir .ct/logs -erl_args +K true +A 10
+	@$(REBAR) -v  eunit skip_deps=true verbose=0
+	ct_run -dir apps/*/itest -pa ebin -verbosity 0 -logdir .ct/logs \
+		-erl_args +K true +A 10
 
 doc: compile
 	@$(REBAR) doc skip_deps=true
@@ -54,4 +56,12 @@ ciclean: distclean
 	rm -rvf $(DEPSOLVER_PLT)
 	rm -rvf ./deps/*
 
-.PHONY: all deps compile dialyze test doc validate release relup clean distclean ciclean
+stest: stestclean rel
+	ct_run -dir ./stest -logdir stest/log -name ct_ea@127.0.0.1 \
+		-pa deps/*/ebin -noshell -hidden
+
+stestclean:
+	rm -rf ./stest/log/*
+
+.PHONY: all deps compile dialyze test doc validate release relup clean \
+	distclean ciclean stest stestclean

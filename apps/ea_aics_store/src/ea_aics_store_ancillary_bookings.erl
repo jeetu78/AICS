@@ -19,6 +19,7 @@
          update/3,
          delete/2,
          record_fields_keys/1,
+         result_fields_keys/0,
          parse_query_result_row/1]).
 
 -export_type([]).
@@ -103,7 +104,7 @@ delete(FlightId, AncillaryBookingId) ->
         end).
 
 %%------------------------------------------------------------------------------
-%% @doc Exports the ancillary booking storage structure.
+%% @doc Exports the ancillary booking record fields structure.
 %% @end
 %%------------------------------------------------------------------------------
 
@@ -111,6 +112,17 @@ delete(FlightId, AncillaryBookingId) ->
 
 record_fields_keys(Prefix) ->
     [{Prefix, Key} || Key <- record_fields_keys()].
+
+%%------------------------------------------------------------------------------
+%% @doc Exports the ancillary booking result fields structure.
+%% @end
+%%------------------------------------------------------------------------------
+
+-spec result_fields_keys() -> [{atom(), atom()}].
+
+result_fields_keys() ->
+    lists:append(record_fields_keys('AT'),
+        ea_aics_store_allocated_ancillaries:result_fields_keys()).
 
 %% ===================================================================
 %% Internal functions
@@ -235,10 +247,6 @@ record_fields(AncillaryBookingId, _FlightId, AllocatedAncillaryId,
         AncillaryBookingInputs) ->
     lists:zip(record_fields_keys(), [AncillaryBookingId,
         AllocatedAncillaryId | AncillaryBookingInputs]).
-
-result_fields_keys() ->
-    lists:append(record_fields_keys('AT'),
-        ea_aics_store_allocated_ancillaries:record_fields_keys('AI')).
 
 %% ===================================================================
 %%  Tests

@@ -36,13 +36,37 @@
 -spec process(atom(), #arg{}, [string()]) -> list().
 
 process('POST', WebArg, ["ancillaries"] = Path) ->
-    {ok, #ea_aics_ancillary{} = Ancillary} = ea_aics_store_ancillaries:create([]),
+    %% TODO JSON input processing here
+    Inputs = [_AncillaryMasterCode = <<"foo">>,
+     _AncillaryServiceProviderId = <<"foo">>,
+     _AncillarySubCode = <<"foo">>,
+     _AncillaryGroupCode = <<"foo">>,
+     _AncillarySubGroup = <<"foo">>,
+     _AncillaryDescription1 = <<"foo">>,
+     _AncillaryDescription2 = <<"foo">>,
+     _AncillaryImageThumbnailUrl = <<"foo">>,
+     _AncillaryImageLargeUrl = <<"foo">>,
+     _AncillaryToolTip = <<"foo">>,
+     _AncillaryPrice = 1.0,
+     _AncillaryCurrency = <<"foo">>,
+     _AncillaryTax = 1.0,
+     _AncillaryIsDiscount = <<"foo">>,
+     _AncillaryDiscountDesc = <<"foo">>,
+     _AncillaryDiscountPcnt = 1.0,
+     _AncillaryCommercialName = <<"foo">>,
+     _AncillaryRFIC = <<"foo">>,
+     _AncillaryModifiedTime = <<"foo">>],
+    {ok, Ancillary} = ea_aics_store_ancillaries:create(Inputs),
+    JsonView = json_view_ancillary(WebArg, Path, Ancillary),
+    HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
+    HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
+    HttpContent = {content, HttpContentType, HttpContentBody},
     AncillaryId = Ancillary#ea_aics_ancillary.id,
     ResourceInstanceUri = resource_instance_uri(WebArg, Path, AncillaryId),
     HttpStatus = {status, ?HTTP_201},
     HeaderLocation = {"Location", ResourceInstanceUri},
     HttpHeaders = {allheaders, [{header, HeaderLocation}]},
-    [HttpStatus, HttpHeaders];
+    [HttpContent, HttpStatus, HttpHeaders];
 process('GET', WebArg, ["ancillaries"] = Path) ->
     {ok, Ancillaries} = ea_aics_store_ancillaries:read(),
     JsonView = json_view_ancillaries(WebArg, Path, Ancillaries),
@@ -82,7 +106,8 @@ process(_Method, _WebArg, _Path) ->
 json_view_ancillary(WebArg, Path, #ea_aics_ancillary{} = Ancillary) ->
     AncillaryId = Ancillary#ea_aics_ancillary.id,
     ResourceUri = resource_instance_uri(WebArg, Path, AncillaryId),
-    [{<<"href">>, ResourceUri}].
+    [{<<"href">>, ResourceUri},
+     {<<"id">>, AncillaryId}].
 
 %%------------------------------------------------------------------------------
 %% @doc Ancillary type resource collection JSON intermediate format.
@@ -103,7 +128,7 @@ json_view_ancillaries(WebArg, Path, Ancillaries) when is_list(Ancillaries) ->
 
 resource_collection_uri(_WebArg, _Path) ->
     % TODO ResourceContext should be managed by web configuration
-    ResourceContext = <<"http://localhost">>,
+    ResourceContext = <<"http://localhost:8000">>,
     Separator = <<"/">>,
     ResourceCollection = <<"ancillaries">>,
     <<ResourceContext/binary, Separator/binary, ResourceCollection/binary>>.
@@ -149,7 +174,8 @@ module_test_() ->
 
                     ok = meck:wait(ea_aics_store_ancillaries, create, '_', 1000),
 
-                    [HttpResponseStatus, HttpResponseHeaders] = HttpResponse,
+                    [HttpResponseContent, HttpResponseStatus, HttpResponseHeaders] = HttpResponse,
+                    ?assertMatch({content, ?HTTP_CONTENT_TYPE_JSON, _HttpResponseContentBody}, HttpResponseContent),
                     ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus),
                     ?assertMatch({allheaders, [{header, {"Location", _ResourceInstanceUri}}]}, HttpResponseHeaders)
                 end
