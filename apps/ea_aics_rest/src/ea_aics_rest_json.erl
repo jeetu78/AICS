@@ -7,6 +7,11 @@
 %%%=============================================================================
 -module(ea_aics_rest_json).
 
+-ifdef(TEST).
+-include_lib("eqc/include/eqc.hrl").
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -export([parse/2,
         validation_spec/1]).
 
@@ -180,3 +185,55 @@ type_validation(Name, Value, string) when is_binary(Value) ->
     end;
 type_validation(Name, _, _) ->
     throw({badtype_parameter, Name}).
+
+%%%----------------------------------------------------------------------------
+%%% Tests
+%%%----------------------------------------------------------------------------
+-ifdef(TEST).
+
+validator_bad_type_test_() ->
+    Spec = [{<<"value1">>, mandatory, integer},
+            {<<"value2">>, optional, boolean}],
+    Fields = [{<<"value1">>, 3}, {<<"value2">>, 5}],
+    ?_assertThrow({badtype_parameter, <<"value2">>}, validate(Spec, Fields)).
+
+validator_missing_parameter_test_() ->
+    Spec = [{<<"value1">>, mandatory, integer},
+            {<<"value2">>, mandatory, string},
+            {<<"value3">>, optional, boolean}],
+    Fields = [{<<"value2">>, "string"}],
+    ?_assertThrow({missing_parameter, <<"value1">>}, validate(Spec, Fields)).
+
+validator_unknown_parameter_test_() ->
+    Spec = [{<<"value1">>, mandatory, binary},
+            {<<"value2">>, mandatory, boolean}],
+    Fields = [{<<"value1">>, <<"binary">>},
+              {<<"value2">>, true},
+              {<<"value3">>, 4}],
+    ?_assertThrow({unknown_parameter, <<"value3">>}, validate(Spec, Fields)).
+
+validator_duplicated_parameter_test_() ->
+    Spec = [{<<"value1">>, mandatory, binary},
+            {<<"value2">>, mandatory, boolean}],
+    Fields = [{<<"value1">>, <<"binary">>},
+              {<<"value2">>, true},
+              {<<"value2">>, false}],
+    ?_assertThrow({duplicated_parameters,
+                   [<<"value1">>, <<"value2">>, <<"value2">>]},
+                  validate(Spec, Fields)).
+
+validator_valid_input_test_() ->
+    Spec = [{<<"value1">>, mandatory, binary},
+            {<<"value2">>, mandatory, boolean},
+            {<<"value3">>, optional, string},
+            {<<"value4">>, mandatory, integer},
+            {<<"value5">>, optional, float},
+            {<<"value6">>, optional, integer}],
+    Fields = [{<<"value1">>, <<"binary">>},
+              {<<"value2">>, true},
+              {<<"value3">>, "string"},
+              {<<"value4">>, 4},
+              {<<"value5">>, 4.9}],
+    ?_assertMatch(Fields, validate(Spec, Fields)).
+
+-endif.
