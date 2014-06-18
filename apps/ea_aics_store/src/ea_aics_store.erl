@@ -12,6 +12,7 @@
 
 -export([start_pool_member/0,
          do_query/1,
+         do_fetch/2,
          generate_uuid/0]).
 
 -export_type([]).
@@ -48,13 +49,28 @@ do_query(OperationFun) ->
     Result.
 
 %%------------------------------------------------------------------------------
+%% @doc Fetches a query on the storage system.
+%% In the case we are calling the fetch function from the ConnectionPid
+%% process, we suppose we are in a transaction. This assumption
+%% comes from the mysql library implementation limits.
+%% @end
+%%------------------------------------------------------------------------------
+
+-spec do_fetch(ConnectionPid :: pid(), Query :: binary()) -> term().
+
+do_fetch(ConnectionPid, Query) when ConnectionPid =:= self() ->
+    mysql:fetch(Query);
+do_fetch(ConnectionPid, Query) ->
+    mysql_conn:fetch(ConnectionPid, Query, self()).
+
+%%------------------------------------------------------------------------------
 %% @doc Generates a UUID (Globally Unique Identifier)
 %% @end
 %%------------------------------------------------------------------------------
 -spec generate_uuid() -> binary().
 
 generate_uuid() ->
-    uuid:get_v4().
+    uuid:uuid_to_string(uuid:get_v4(), binary_nodash).
 
 %% ===================================================================
 %%  Tests

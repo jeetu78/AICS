@@ -20,3 +20,27 @@
 
 - name: ensure memsql service running
   service: name=memsql state=started
+
+- name: ensure memsql configuration
+  copy: src=memsql.cnf dest=/var/lib/memsql/
+  register: memsql_config
+
+- name: ensure memsql service restarted
+  service: name=memsql state=restarted
+  register: memsql_restart
+  when: memsql_config.changed
+
+- name: copy aics_schema_add_leaf query
+  copy: src=AICS_SCHEMA_ADD_LEAF.sql dest=/tmp/
+
+- name: add memsql leaf
+  shell: mysql -u root -h 127.0.0.1 -P 3306 < /tmp/AICS_SCHEMA_ADD_LEAF.sql
+  failed_when: false
+
+- name: copy aics_schema query
+  copy: src=AICS_SCHEMA.sql dest=/tmp/
+  register: aics_schema
+
+- name: execute aics_schema query
+  shell: mysql -u root -h 127.0.0.1 -P 3306 < /tmp/AICS_SCHEMA.sql
+  when: aics_schema.changed

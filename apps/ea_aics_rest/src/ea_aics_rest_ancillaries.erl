@@ -36,7 +36,7 @@
 -spec process(atom(), #arg{}, [string()]) -> list().
 
 process('POST', WebArg, ["ancillaries"] = Path) ->
-    {ok, #ea_aics_ancillary{} = Ancillary} = ea_aics_store_ancillaries:create(),
+    {ok, #ea_aics_ancillary{} = Ancillary} = ea_aics_store_ancillaries:create([]),
     AncillaryId = Ancillary#ea_aics_ancillary.id,
     ResourceInstanceUri = resource_instance_uri(WebArg, Path, AncillaryId),
     HttpStatus = {status, ?HTTP_201},
@@ -139,7 +139,7 @@ module_test_() ->
                     ResourceId = <<"111">>,
                     Resource = #ea_aics_ancillary{id = ResourceId},
 
-                    ok = meck:expect(ea_aics_store_ancillaries, create, [], {ok, Resource}),
+                    ok = meck:expect(ea_aics_store_ancillaries, create, ['_'], {ok, Resource}),
 
                     HttpRequestMethod = 'POST',
                     HttpRequestPath = ["ancillaries"],
