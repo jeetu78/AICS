@@ -24,7 +24,7 @@ dialyze: $(DEPSOLVER_PLT) compile
 		-Wunmatched_returns -Werror_handling -Wrace_conditions -Wno_undefined_callbacks
 
 test: compile
-	@$(REBAR) -v  eunit skip_deps=true verbose=0
+	@$(REBAR) -v eunit skip_deps=true verbose=0
 	ct_run -dir apps/*/itest -pa ebin -verbosity 0 -logdir .ct/logs -erl_args +K true +A 10
 
 doc: compile

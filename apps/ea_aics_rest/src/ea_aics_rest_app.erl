@@ -94,18 +94,16 @@ sanity_test_() ->
 callback_test_() ->
     [
         ?_assertMatch(ok, stop([])),
-        % TODO: Decide whether to remove this.
         ?_assertMatch({ok, Pid} when is_pid(Pid),
                       begin
                         ok = application:load(ea_aics_rest),
-                        ok = application:start(compiler),
-                        ok = application:start(syntax_tools, temporary),
-                        ok = application:start(goldrush, temporary),
-                        ok = application:start(lager),
-                        ok = application:start(exometer, temporary),
+                        [ok = application:start(App, temporary) || App <- applications()],
                         start(temporary, [])
                       end),
         ?_assertMatch({ok, {{one_for_one, 0, 1}, []}}, init([]))
     ].
+
+applications() ->
+    [compiler, syntax_tools, goldrush, lager, exometer].
 
 -endif.
