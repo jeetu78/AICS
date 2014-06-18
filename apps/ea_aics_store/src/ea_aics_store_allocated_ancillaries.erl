@@ -18,6 +18,7 @@
          update/3,
          delete/2,
          record_fields_keys/1,
+         result_fields_keys/0,
          parse_query_result_row/1]).
 
 -export_type([]).
@@ -96,7 +97,7 @@ delete(FlightId, AllocatedAncillaryId) ->
         end).
 
 %%------------------------------------------------------------------------------
-%% @doc Exports the allocated ancillary storage structure.
+%% @doc Exports the allocated ancillary record fields structure.
 %% @end
 %%------------------------------------------------------------------------------
 
@@ -104,6 +105,17 @@ delete(FlightId, AllocatedAncillaryId) ->
 
 record_fields_keys(Prefix) ->
     [{Prefix, Key} || Key <- record_fields_keys()].
+
+%%------------------------------------------------------------------------------
+%% @doc Exports the allocated ancillary result fields structure.
+%% @end
+%%------------------------------------------------------------------------------
+
+-spec result_fields_keys() -> [{atom(), atom()}].
+
+result_fields_keys() ->
+    lists:append(record_fields_keys('AI'),
+        ea_aics_store_ancillaries:result_fields_keys()).
 
 %% ===================================================================
 %% Internal functions
@@ -146,8 +158,10 @@ do_create(ConnectionPid, FlightId, AncillaryId, AllocatedAncillaryInputs) ->
 
 do_read(ConnectionPid, FlightId) ->
     ResultFieldsKeys = result_fields_keys(),
-    Query = sqerl:sql({select, ResultFieldsKeys, {from, ['ANCILLARY_INVENTORY',
-        {'ANCILLARY_MASTER', as, 'AM'}]}, {where, {'FLIGHT_UUID', '=', FlightId}}}, true),
+    Query = sqerl:sql({select, ResultFieldsKeys,
+        {from, [{'ANCILLARY_INVENTORY', as, 'AI'},
+                {'ANCILLARY_MASTER', as, 'AM'}]},
+        {where, {{'AI', 'FLIGHT_UUID'}, '=', FlightId}}}, true),
     {data, QueryResult} = ea_aics_store:do_fetch(ConnectionPid, Query),
     #mysql_result{fieldinfo = _Fields,
                   rows = _Rows} = QueryResult,
@@ -156,9 +170,12 @@ do_read(ConnectionPid, FlightId) ->
 
 do_read(ConnectionPid, FlightId, AllocatedAncillaryId) ->
     ResultFieldsKeys = result_fields_keys(),
-    Query = sqerl:sql({select, ResultFieldsKeys, {from, ['ANCILLARY_INVENTORY',
-        {'ANCILLARY_MASTER', as, 'AM'}]}, {where, {'and', [{'FLIGHT_UUID', '=', FlightId},
-        {'UUID', '=', AllocatedAncillaryId}]}}}, true),
+    Query = sqerl:sql({select, ResultFieldsKeys,
+        {from, [{'ANCILLARY_INVENTORY', as, 'AI'},
+                {'ANCILLARY_MASTER', as, 'AM'}]},
+        {where, {'and', [{{'AI', 'ANCILLARY_MASTER_UUID'}, '=', {'AM', 'UUID'}},
+                         {{'AI', 'FLIGHT_UUID'}, '=', FlightId},
+                         {{'AI', 'UUID'}, '=', AllocatedAncillaryId}]}}}, true),
     {data, QueryResult} = ea_aics_store:do_fetch(ConnectionPid, Query),
     #mysql_result{fieldinfo = _Fields,
                   rows = _Rows} = QueryResult,
@@ -214,13 +231,9 @@ record_fields_keys() ->
         'ALLOCATED_QUANTITY', 'AVAILABLE_QUANTITY', 'MODIFIED_TIME'].
 
 record_fields(AllocatedAncillaryId, FlightId, AncillaryId,
-        AllocatedAncillaryInputs) ->
-    lists:zip(record_fields_keys(), [AllocatedAncillaryId, FlightId,
-        AncillaryId | AllocatedAncillaryInputs]).
-
-result_fields_keys() ->
-    lists:append(record_fields_keys(),
-        ea_aics_store_ancillaries:record_fields_keys('AM')).
+        AllocatedAncillariesInputs) ->
+    lists:zip(record_fields_keys(), [AllocatedAncillaryId, AncillaryId,
+         FlightId | AllocatedAncillariesInputs]).
 
 
 %% ===================================================================

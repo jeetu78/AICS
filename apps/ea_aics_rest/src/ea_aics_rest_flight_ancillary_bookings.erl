@@ -34,22 +34,33 @@
 -spec process(atom(), #arg{}, [string()]) -> list().
 
 process('POST', WebArg, ["flights", Uri_FlightId, "ancillary-bookings"] = Path) ->
+    %% TODO JSON input processing here
+    Inputs = [_AncillaryBookingCustomerId = <<"foo">>,
+     _AncillaryBookingTransactionId = <<"foo">>,
+     _AncillaryBookingOperationType = <<"foo">>,
+     _AncillaryBookingBookingTime = <<"foo">>,
+     _AncillaryBookingQuantity = 1,
+     _AncillaryBookingModifiedTime = <<"foo">>],
     HttpRequestContentBody = WebArg#arg.clidata,
-    JsonView = ea_aics_rest_utils:json_decode(HttpRequestContentBody),
-    {<<"allocatedAncillary">>, JsonView_AllocatedAncillaryResource} =
-        lists:keyfind(<<"allocatedAncillary">>, 1, JsonView),
-    {<<"id">>, JsonView_AllocatedAncillaryId} =
-        lists:keyfind(<<"id">>, 1, JsonView_AllocatedAncillaryResource),
+    JsonInput = ea_aics_rest_utils:json_decode(HttpRequestContentBody),
+    {<<"allocatedAncillary">>, JsonInput_AllocatedAncillaryResource} =
+        lists:keyfind(<<"allocatedAncillary">>, 1, JsonInput),
+    {<<"id">>, JsonInput_AllocatedAncillaryId} =
+        lists:keyfind(<<"id">>, 1, JsonInput_AllocatedAncillaryResource),
     FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
     {ok, #ea_aics_ancillary_booking{} = AncillaryBooking} =
-        ea_aics_store_ancillary_bookings:create(FlightId, JsonView_AllocatedAncillaryId),
+        ea_aics_store_ancillary_bookings:create(FlightId, JsonInput_AllocatedAncillaryId, Inputs),
     ok = ea_aics_mq:produce(AncillaryBooking),
+    JsonView = json_view_ancillary_booking(WebArg, Path, FlightId, AncillaryBooking),
+    HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
+    HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
+    HttpContent = {content, HttpContentType, HttpContentBody},
     AncillaryBookingId = AncillaryBooking#ea_aics_ancillary_booking.id,
     ResourceInstanceUri = resource_instance_uri(WebArg, Path, FlightId, AncillaryBookingId),
     HttpStatus = {status, ?HTTP_201},
     HeaderLocation = {"Location", ResourceInstanceUri},
     HttpHeaders = {allheaders, [{header, HeaderLocation}]},
-    [HttpStatus, HttpHeaders];
+    [HttpContent, HttpStatus, HttpHeaders];
 process('GET', WebArg, ["flights", Uri_FlightId, "ancillary-bookings"] = Path) ->
     FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
     {ok, AncillaryBookings} = ea_aics_store_ancillary_bookings:read(FlightId),
@@ -97,6 +108,7 @@ json_view_ancillary_booking(WebArg, Path, FlightId, #ea_aics_ancillary_booking{}
     AncillaryBooking_AllocatedAncillaryJsonView =
         ea_aics_rest_flight_allocated_ancillaries:json_view_allocated_ancillary(WebArg, Path, FlightId, AncillaryBooking_AllocatedAncillary),
     [{<<"href">>, ResourceUri},
+     {<<"id">>, AncillaryBookingId},
      {<<"allocatedAncillary">>, AncillaryBooking_AllocatedAncillaryJsonView}].
 
 %%------------------------------------------------------------------------------
@@ -118,8 +130,10 @@ json_view_ancillary_bookings(WebArg, Path, FlightId, AncillaryBookings) when is_
 
 resource_collection_uri(_WebArg, _Path, FlightId) ->
     % TODO ResourceContext should be managed by web configuration
-    ResourceContext = <<(<<"http://localhost/flights">>)/binary, FlightId/binary>>,
     Separator = <<"/">>,
+    ResourceContext = <<(<<"http://localhost:8000/flights">>)/binary,
+                         Separator/binary,
+                         FlightId/binary>>,
     ResourceCollection = <<"ancillary-bookings">>,
     <<ResourceContext/binary, Separator/binary, ResourceCollection/binary>>.
 
@@ -155,10 +169,13 @@ module_test_() ->
 
                     ok = meck:expect(ea_aics_mq, produce, ['_'], ok),
 
-                    ResourceId = <<"111">>,
-                    Resource = #ea_aics_ancillary_booking{id = ResourceId},
+                    Ancillary = #ea_aics_ancillary{id = <<"111">>},
+                    AllocatedAncillary = #ea_aics_allocated_ancillary{id = <<"111">>,
+                                                                      ancillary = Ancillary},
+                    AncillaryBooking = #ea_aics_ancillary_booking{id = <<"111">>,
+                                                                  allocated_ancillary = AllocatedAncillary},
 
-                    ok = meck:expect(ea_aics_store_ancillary_bookings, create, ['_', '_'], {ok, Resource}),
+                    ok = meck:expect(ea_aics_store_ancillary_bookings, create, ['_', '_', '_'], {ok, AncillaryBooking}),
 
                     HttpRequestMethod = 'POST',
                     HttpRequestContentBody = <<"{\"allocatedAncillary\": {\"id\": \"111\"}}">>,
@@ -171,7 +188,8 @@ module_test_() ->
 
                     ok = meck:wait(ea_aics_mq, produce, '_', 1000),
 
-                    [HttpResponseStatus, HttpResponseHeaders] = HttpResponse,
+                    [HttpResponseContent, HttpResponseStatus, HttpResponseHeaders] = HttpResponse,
+                    ?assertMatch({content, ?HTTP_CONTENT_TYPE_JSON, _HttpResponseContentBody}, HttpResponseContent),
                     ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus),
                     ?assertMatch({allheaders, [{header, {"Location", _ResourceInstanceUri}}]}, HttpResponseHeaders)
                 end
