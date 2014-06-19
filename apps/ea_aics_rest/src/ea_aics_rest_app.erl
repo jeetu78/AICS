@@ -94,12 +94,13 @@ sanity_test_() ->
 callback_test_() ->
     [
         ?_assertMatch(ok, stop([])),
-        ?_assertMatch({ok, Pid} when is_pid(Pid),
-                      begin
-                        ok = application:load(ea_aics_rest),
-                        [ok = application:start(App, temporary) || App <- applications()],
-                        start(temporary, [])
-                      end),
+        {timeout, 10,
+         ?_assertMatch({ok, Pid} when is_pid(Pid),
+            begin
+                ok = application:load(ea_aics_rest),
+                [ok = application:start(App, temporary) || App <- applications()],
+                start(temporary, [])
+            end)},
         ?_assertMatch({ok, {{one_for_one, 0, 1}, []}}, init([]))
     ].
 
