@@ -36,12 +36,12 @@
 %% @end
 %%------------------------------------------------------------------------------
 
--spec create(term()) -> {ok, #ea_aics_ancillary{}}.
+-spec create(#ea_aics_ancillary{}) -> {ok, #ea_aics_ancillary{}}.
 
-create(AncillaryInputs) ->
+create(AncillaryInput) ->
     ea_aics_store:do_query(
         fun(ConnectionPid) ->
-            do_create_transaction(ConnectionPid, AncillaryInputs)
+            do_create_transaction(ConnectionPid, AncillaryInput)
         end).
 
 %%------------------------------------------------------------------------------
@@ -120,11 +120,11 @@ result_fields_keys() ->
 %% Internal functions
 %% ===================================================================
 
-do_create_transaction(ConnectionPid, AncillaryInputs) ->
+do_create_transaction(ConnectionPid, AncillaryInput) ->
     {atomic, Response} =
         mysql_conn:transaction(ConnectionPid,
             fun() ->
-                {ok, AncillaryId} = do_create(ConnectionPid, AncillaryInputs),
+                {ok, AncillaryId} = do_create(ConnectionPid, AncillaryInput),
                 {ok, _Ancillary} = do_read(ConnectionPid, AncillaryId)
             end, self()),
     Response.
@@ -142,9 +142,9 @@ do_update_transaction(ConnectionPid, AncillaryId, AncillaryUpdates) ->
             end, self()),
     Response.
 
-do_create(ConnectionPid, AncillaryInputs) ->
+do_create(ConnectionPid, AncillaryInput) ->
     AncillaryId = ea_aics_store:generate_uuid(),
-    RecordFieldsInputs = record_fields(AncillaryId, AncillaryInputs),
+    RecordFieldsInputs = record_fields(AncillaryId, AncillaryInput),
     Query = sqerl:sql({insert, 'ANCILLARY_MASTER', RecordFieldsInputs}, true),
     {updated, QueryResult} = ea_aics_store:do_fetch(ConnectionPid, Query),
     #mysql_result{affectedrows = 1} = QueryResult,
@@ -227,13 +227,47 @@ parse_query_result_row(QueryResultRow) ->
 
 record_fields_keys() ->
     ['UUID', 'ANC_MASTER_CODE', 'SERVICE_PROVIDER_ID', 'SUB_CODE', 'GROUP_CODE',
-        'SUB_GROUP', 'DESCRIPTION1', 'DESCRIPTION2', 'IMAGE_THUBNAIL_URL',
+        'SUB_GROUP', 'DESCRIPTION1', 'DESCRIPTION2', 'IMAGE_THUMBNAIL_URL',
         'IMAGE_LARGE_URL', 'IMAGE_TOOL_TIP', 'PRICE', 'CURRENCY', 'TAX',
         'IS_DISCOUNT', 'DISCOUNT_DESC', 'DISCOUNT_PCNT', 'COMMERCIAL_NAME', 'RFIC',
         'MODIFIED_TIME'].
 
-record_fields(AncillaryId, AncillaryInputs) ->
-    lists:zip(record_fields_keys(), [AncillaryId | AncillaryInputs]).
+record_input_values(AncillaryId, #ea_aics_ancillary{} = AncillaryInput) ->
+    Anc_MasterCode = record_input_value(AncillaryInput#ea_aics_ancillary.master_code),
+    Anc_ServiceProviderId = record_input_value(AncillaryInput#ea_aics_ancillary.service_provider_id),
+    Anc_SubCode = record_input_value(AncillaryInput#ea_aics_ancillary.sub_code),
+    Anc_GroupCode = record_input_value(AncillaryInput#ea_aics_ancillary.group_code),
+    Anc_SubGroup = record_input_value(AncillaryInput#ea_aics_ancillary.sub_group),
+    Anc_Description1 = record_input_value(AncillaryInput#ea_aics_ancillary.description1),
+    Anc_Description2 = record_input_value(AncillaryInput#ea_aics_ancillary.description2),
+    Anc_ImageThumbnailUrl = record_input_value(AncillaryInput#ea_aics_ancillary.image_thumbnail_url),
+    Anc_ImageLargeUrl = record_input_value(AncillaryInput#ea_aics_ancillary.image_large_url),
+    Anc_ToolTip = record_input_value(AncillaryInput#ea_aics_ancillary.tooltip),
+    Anc_Price = record_input_value(AncillaryInput#ea_aics_ancillary.price),
+    Anc_Currency = record_input_value(AncillaryInput#ea_aics_ancillary.currency),
+    Anc_Tax = record_input_value(AncillaryInput#ea_aics_ancillary.tax),
+    Anc_IsDiscount = record_input_value(AncillaryInput#ea_aics_ancillary.is_discount),
+    Anc_DiscountDesc = record_input_value(AncillaryInput#ea_aics_ancillary.discount_desc),
+    Anc_DiscountPcnt = record_input_value(AncillaryInput#ea_aics_ancillary.discount_pcnt),
+    Anc_CommercialName = record_input_value(AncillaryInput#ea_aics_ancillary.commercial_name),
+    Anc_RFIC = record_input_value(AncillaryInput#ea_aics_ancillary.rfic),
+    [AncillaryId, Anc_MasterCode, Anc_ServiceProviderId, Anc_SubCode,
+     Anc_GroupCode, Anc_SubGroup, Anc_Description1, Anc_Description2,
+     Anc_ImageThumbnailUrl, Anc_ImageLargeUrl, Anc_ToolTip, Anc_Price,
+     Anc_Currency, Anc_Tax, Anc_IsDiscount, Anc_DiscountDesc, Anc_DiscountPcnt,
+     Anc_CommercialName, Anc_RFIC].
+
+record_input_value(undefined) ->
+    null;
+record_input_value(Value) ->
+    Value.
+
+record_fields(AncillaryId, AncillaryInput) ->
+    Fields = ['UUID', 'ANC_MASTER_CODE', 'SERVICE_PROVIDER_ID', 'SUB_CODE', 'GROUP_CODE',
+        'SUB_GROUP', 'DESCRIPTION1', 'DESCRIPTION2', 'IMAGE_THUMBNAIL_URL',
+        'IMAGE_LARGE_URL', 'IMAGE_TOOL_TIP', 'PRICE', 'CURRENCY', 'TAX',
+        'IS_DISCOUNT', 'DISCOUNT_DESC', 'DISCOUNT_PCNT', 'COMMERCIAL_NAME', 'RFIC'],
+    lists:zip(Fields, record_input_values(AncillaryId, AncillaryInput)).
 
 %% ===================================================================
 %%  Tests

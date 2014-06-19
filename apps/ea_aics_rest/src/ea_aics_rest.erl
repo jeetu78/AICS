@@ -54,7 +54,7 @@ post_process(Result) ->
     case proplists:get_value(status, Result) of
         V when V == ?HTTP_200; V == ?HTTP_201; V == ?HTTP_204 ->
             exometer:update(?C_OK_REQ, 1);
-        ?HTTP_405 ->
+        V when V == ?HTTP_405; V == ?HTTP_400 ->
             exometer:update(?C_INVALID_REQ, 1);
         _V ->
             ok

@@ -2,10 +2,8 @@
 %%% @author Alexej Tessaro <alexej.tessaro@erlang-solutions.com>
 %%% @doc The Ancillary Inventory Control System rest interface
 %%% ancillaries resource
-%%%
 %%% @end
 %%%=============================================================================
-
 -module(ea_aics_rest_ancillaries).
 
 -ifdef(TEST).
@@ -23,50 +21,58 @@
 -include_lib("ea_aics_core/include/ea_aics_core.hrl").
 -include("ea_aics_rest.hrl").
 
-%% ===================================================================
+%%=============================================================================
 %%  API
-%% ===================================================================
+%%=============================================================================
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% @doc Implements HTTP REST on a resource of ancillary type.
-%%
 %% @end
-%%------------------------------------------------------------------------------
-
+%%-----------------------------------------------------------------------------
 -spec process(atom(), #arg{}, [string()]) -> list().
 
 process('POST', WebArg, ["ancillaries"] = Path) ->
-    %% TODO JSON input processing here
-    Inputs = [_AncillaryMasterCode = <<"foo">>,
-     _AncillaryServiceProviderId = <<"foo">>,
-     _AncillarySubCode = <<"foo">>,
-     _AncillaryGroupCode = <<"foo">>,
-     _AncillarySubGroup = <<"foo">>,
-     _AncillaryDescription1 = <<"foo">>,
-     _AncillaryDescription2 = <<"foo">>,
-     _AncillaryImageThumbnailUrl = <<"foo">>,
-     _AncillaryImageLargeUrl = <<"foo">>,
-     _AncillaryToolTip = <<"foo">>,
-     _AncillaryPrice = 1.0,
-     _AncillaryCurrency = <<"foo">>,
-     _AncillaryTax = 1.0,
-     _AncillaryIsDiscount = <<"foo">>,
-     _AncillaryDiscountDesc = <<"foo">>,
-     _AncillaryDiscountPcnt = 1.0,
-     _AncillaryCommercialName = <<"foo">>,
-     _AncillaryRFIC = <<"foo">>,
-     _AncillaryModifiedTime = <<"foo">>],
-    {ok, Ancillary} = ea_aics_store_ancillaries:create(Inputs),
-    JsonView = json_view_ancillary(WebArg, Path, Ancillary),
-    HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
-    HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
-    HttpContent = {content, HttpContentType, HttpContentBody},
-    AncillaryId = Ancillary#ea_aics_ancillary.id,
-    ResourceInstanceUri = resource_instance_uri(WebArg, Path, AncillaryId),
-    HttpStatus = {status, ?HTTP_201},
-    HeaderLocation = {"Location", ResourceInstanceUri},
-    HttpHeaders = {allheaders, [{header, HeaderLocation}]},
-    [HttpContent, HttpStatus, HttpHeaders];
+    Body = yaws_api:arg_clidata(WebArg),
+    Json = ea_aics_rest_utils:json_decode(Body),
+    case ea_aics_rest_json:parse(validation_spec(), Json) of
+        {invalid_json, Reason, JsonFields} ->
+            %log an info message with the validation error
+            lager:info("Invalid JSON ancillary. Reason: ~p, Input: ~p",
+                        [Reason,JsonFields]),
+            [{status, ?HTTP_400}];
+        _Values ->
+            %% TODO JSON input processing here
+            AncillaryInput =
+                #ea_aics_ancillary{master_code = 111,
+                                   service_provider_id = <<"foo">>,
+                                   sub_code = <<"foo">>,
+                                   group_code = <<"foo">>,
+                                   sub_group = <<"foo">>,
+                                   description1 = <<"foo">>,
+                                   description2 = <<"foo">>,
+                                   image_thumbnail_url = <<"foo">>,
+                                   image_large_url = <<"foo">>,
+                                   tooltip = <<"foo">>,
+                                   price = 1.0,
+                                   currency = <<"foo">>,
+                                   tax = 1.0,
+                                   is_discount = <<"foo">>,
+                                   discount_desc = <<"foo">>,
+                                   discount_pcnt = 1.0,
+                                   commercial_name = <<"foo">>,
+                                   rfic = <<"foo">>},
+            {ok, Ancillary} = ea_aics_store_ancillaries:create(AncillaryInput),
+            JsonView = json_view_ancillary(WebArg, Path, Ancillary),
+            HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
+            HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
+            HttpContent = {content, HttpContentType, HttpContentBody},
+            AncillaryId = Ancillary#ea_aics_ancillary.id,
+            ResourceInstanceUri = resource_instance_uri(WebArg, Path, AncillaryId),
+            HttpStatus = {status, ?HTTP_201},
+            HeaderLocation = {"Location", ResourceInstanceUri},
+            HttpHeaders = {allheaders, [{header, HeaderLocation}]},
+            [HttpContent, HttpStatus, HttpHeaders]
+    end;
 process('GET', WebArg, ["ancillaries"] = Path) ->
     {ok, Ancillaries} = ea_aics_store_ancillaries:read(),
     JsonView = json_view_ancillaries(WebArg, Path, Ancillaries),
@@ -97,10 +103,8 @@ process(_Method, _WebArg, _Path) ->
 
 %%------------------------------------------------------------------------------
 %% @doc Ancillary type resource instance JSON intermediate format.
-%%
 %% @end
 %%------------------------------------------------------------------------------
-
 -spec json_view_ancillary(#arg{}, [string()], #ea_aics_ancillary{}) -> term().
 
 json_view_ancillary(WebArg, Path, #ea_aics_ancillary{} = Ancillary) ->
@@ -111,10 +115,8 @@ json_view_ancillary(WebArg, Path, #ea_aics_ancillary{} = Ancillary) ->
 
 %%------------------------------------------------------------------------------
 %% @doc Ancillary type resource collection JSON intermediate format.
-%%
 %% @end
 %%------------------------------------------------------------------------------
-
 -spec json_view_ancillaries(#arg{}, [string()], [#ea_aics_ancillary{}]) -> term().
 
 json_view_ancillaries(WebArg, Path, Ancillaries) when is_list(Ancillaries) ->
@@ -122,9 +124,9 @@ json_view_ancillaries(WebArg, Path, Ancillaries) when is_list(Ancillaries) ->
      {<<"ancillaries">>, [json_view_ancillary(WebArg, Path, Ancillary)
         || Ancillary <- Ancillaries]}].
 
-%% ===================================================================
+%%=============================================================================
 %%  Internal Functions
-%% ===================================================================
+%%=============================================================================
 
 resource_collection_uri(_WebArg, _Path) ->
     % TODO ResourceContext should be managed by web configuration
@@ -138,15 +140,35 @@ resource_instance_uri(WebArg, Path, AncillaryId) ->
     Separator = <<"/">>,
     <<ResourceCollectionUri/binary, Separator/binary, AncillaryId/binary>>.
 
-%% ===================================================================
+validation_spec() ->
+    [{<<"masterCode">>, optional, integer},
+     {<<"serviceProviderId">>, optional, string},
+     {<<"subCode">>, optional, string},
+     {<<"groupCode">>, optional, string},
+     {<<"subGroup">>, optional, string},
+     {<<"description1">>, optional, string},
+     {<<"description2">>, optional, string},
+     {<<"imageThumbnailUrl">>, optional, string},
+     {<<"toolTip">>, optional, string},
+     {<<"price">>, optional, float},
+     {<<"currency">>, optional, string},
+     {<<"tax">>, optional, float},
+     {<<"isDiscount">>, optional, string},
+     {<<"discountDesc">>, optional, string},
+     {<<"iscountPcnt">>, optional, float},
+     {<<"commercialName">>, optional, string},
+     {<<"RFIC">>, optional, string}].
+
+%%=============================================================================
 %%  Tests
-%% ===================================================================
+%%=============================================================================
 
 -ifdef(TEST).
 
 module_test_() ->
 
     HttpRequestContentBody = ?HTTP_CONTENT_BODY_EMPTY,
+    EmptyJson = <<"[]">>,
     HttpRequestHeaders = [],
 
     {foreach,
@@ -168,7 +190,7 @@ module_test_() ->
 
                     HttpRequestMethod = 'POST',
                     HttpRequestPath = ["ancillaries"],
-                    WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
+                    WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, EmptyJson, HttpRequestHeaders),
 
                     HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
 
