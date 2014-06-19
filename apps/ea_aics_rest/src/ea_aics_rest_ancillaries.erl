@@ -8,10 +8,6 @@
 
 -module(ea_aics_rest_ancillaries).
 
--ifdef(TEST).
--include_lib("eqc/include/eqc.hrl").
--include_lib("eunit/include/eunit.hrl").
--endif.
 
 -export([process/3,
          json_view_ancillary/3,
@@ -44,13 +40,27 @@ process('POST', WebArg, ["ancillaries"] = Path) ->
     HttpHeaders = {allheaders, [{header, HeaderLocation}]},
     [HttpStatus, HttpHeaders];
 process('GET', WebArg, ["ancillaries"] = Path) ->
-    {ok, Ancillaries} = ea_aics_store_ancillaries:read(),
-    JsonView = json_view_ancillaries(WebArg, Path, Ancillaries),
+    io:format("~p~p",[WebArg,Path]),
+    AncillariesJsonView= ea_aics_service:getAncillariesForFlight("857c16d7-acb7-4a87-98dc-641364a88779"),
     HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
-    HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
+    HttpContentBody = ea_aics_rest_utils:json_encode(AncillariesJsonView),
     HttpContent = {content, HttpContentType, HttpContentBody},
+    %%HttpContent = {content, "text/HTML", "this is body"},
     HttpStatus = {status, ?HTTP_200},
     [HttpContent, HttpStatus];
+
+process('GET', WebArg, ["book-ancillaries"] = Path) ->
+    io:format("~p~p",[WebArg,Path]),
+	Json=list_to_binary("{ \"data\":[ { \"anc_inv_uuid\": \"009171d0-561e-4d72-8297-0ec75da4c274\", \"customer_uuid\": \"1234\", \"quantity\" : 2 }, { \"anc_inv_uuid\": \"fe992fc5-5862-4f69-bf26-f13648dfb128\", \"customer_uuid\": \"1234\", \"quantity\" : 3 }, { \"anc_inv_uuid\": \"f2fa31ba-0e87-40b5-a4c1-06d50651e571\", \"customer_uuid\": \"xyz\", \"quantity\" : 1 } ] }"),
+	JsonStructure=ea_aics_rest_utils:json_decode(Json),
+    TxJsonView= ea_aics_service:bookAncillaries(JsonStructure),
+    HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
+    HttpContentBody = ea_aics_rest_utils:json_encode(TxJsonView),
+    HttpContent = {content, HttpContentType, HttpContentBody},
+    %%HttpContent = {content, "text/HTML", "this is body"},
+    HttpStatus = {status, ?HTTP_200},
+    [HttpContent, HttpStatus];
+
 process('GET', WebArg, ["ancillaries", Uri_AncillaryId] = Path) ->
     AncillaryId = ea_aics_rest_utils:parse_uri_id(Uri_AncillaryId),
     {ok, Ancillary} = ea_aics_store_ancillaries:read(AncillaryId),
@@ -117,136 +127,3 @@ resource_instance_uri(WebArg, Path, AncillaryId) ->
 %%  Tests
 %% ===================================================================
 
--ifdef(TEST).
-
-module_test_() ->
-
-    HttpRequestContentBody = ?HTTP_CONTENT_BODY_EMPTY,
-    HttpRequestHeaders = [],
-
-    {foreach,
-     fun()  ->
-        ok = meck:new(ea_aics_store_ancillaries, [non_strict])
-     end,
-     fun(_) ->
-        ?assert(meck:validate(ea_aics_store_ancillaries)),
-        ok = meck:unload(ea_aics_store_ancillaries)
-     end,
-     [
-        {"post",
-            [
-                fun() ->
-                    ResourceId = <<"111">>,
-                    Resource = #ea_aics_ancillary{id = ResourceId},
-
-                    ok = meck:expect(ea_aics_store_ancillaries, create, [], {ok, Resource}),
-
-                    HttpRequestMethod = 'POST',
-                    HttpRequestPath = ["ancillaries"],
-                    WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
-
-                    HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
-
-                    ok = meck:wait(ea_aics_store_ancillaries, create, '_', 1000),
-
-                    [HttpResponseStatus, HttpResponseHeaders] = HttpResponse,
-                    ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus),
-                    ?assertMatch({allheaders, [{header, {"Location", _ResourceInstanceUri}}]}, HttpResponseHeaders)
-                end
-            ]
-        },
-        {"get collection",
-            [
-                fun() ->
-                    Resources = [#ea_aics_ancillary{id = <<"111">>},
-                                 #ea_aics_ancillary{id = <<"222">>}],
-
-                    ok = meck:expect(ea_aics_store_ancillaries, read, [], {ok, Resources}),
-
-                    HttpRequestMethod = 'GET',
-                    HttpRequestPath = ["ancillaries"],
-                    WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
-
-                    HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
-
-                    ok = meck:wait(ea_aics_store_ancillaries, read, '_', 1000),
-
-                    [HttpResponseContent, HttpResponseStatus] = HttpResponse,
-                    ?assertMatch({content, ?HTTP_CONTENT_TYPE_JSON, _HttpResponseContentBody}, HttpResponseContent),
-                    ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus)
-                end
-            ]
-        },
-        {"get instance",
-            [
-                fun() ->
-                    ResourceId = <<"111">>,
-                    Resource = #ea_aics_ancillary{id = ResourceId},
-
-                    ok = meck:expect(ea_aics_store_ancillaries, read, ['_'], {ok, Resource}),
-
-                    HttpRequestMethod = 'GET',
-                    HttpRequestPath = ["ancillaries", "111"],
-                    WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
-
-                    HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
-
-                    ok = meck:wait(ea_aics_store_ancillaries, read, '_', 1000),
-
-                    [HttpResponseContent, HttpResponseStatus] = HttpResponse,
-                    ?assertMatch({content, ?HTTP_CONTENT_TYPE_JSON, _HttpResponseContentBody}, HttpResponseContent),
-                    ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus)
-                end
-            ]
-        },
-        {"put",
-            [
-                fun() ->
-                    HttpRequestMethod = 'PUT',
-                    HttpRequestPath = ["ancillaries", "111"],
-                    WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
-
-                    HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
-
-                    [HttpResponseStatus] = HttpResponse,
-                    ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus)
-                end
-            ]
-        },
-        {"delete",
-            [
-                fun() ->
-
-                    ok = meck:expect(ea_aics_store_ancillaries, delete, ['_'], ok),
-
-                    HttpRequestMethod = 'DELETE',
-                    HttpRequestPath = ["ancillaries", "111"],
-                    WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
-
-                    HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
-
-                    ok = meck:wait(ea_aics_store_ancillaries, delete, '_', 1000),
-
-                    [HttpResponseStatus] = HttpResponse,
-                    ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus)
-                end
-            ]
-        },
-        {"not allowed",
-            [
-                fun() ->
-                    HttpRequestMethod = 'DELETE',
-                    HttpRequestPath = ["ancillaries"],
-                    WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
-
-                    HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
-
-                    [HttpResponseStatus] = HttpResponse,
-                    ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus)
-                end
-            ]
-        }
-     ]
-    }.
-
--endif.
