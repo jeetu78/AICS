@@ -12,14 +12,22 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([parse/2,
-        validation_spec/1]).
+-export([parse/2]).
 
 %%%----------------------------------------------------------------------------
 %%% Types
 %%%----------------------------------------------------------------------------
--type resource_type() :: 'ancillary' | 'ancillary_booking' |
-    'allocated_ancillary'.
+
+%-type resource_type() :: 'ancillary' | 'ancillary_booking' |
+%    'allocated_ancillary'.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% TODO: Right now the validator returns the Json as it is without validating
+%%% in the case of nested JSONs. We need to implement the recursive validation
+%%% of nested JSONs.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-type resource_type() :: 'json'.
 
 -type validation_spec() :: nonempty_list({binary(), mandatory | optional,
                                           field_type()}).
@@ -35,7 +43,7 @@
 -type record_field_name() :: binary().
 
 -type record_field_value() :: integer() | boolean() | binary() |
-    string() | float().
+    string() | float() | internal_parameters().
 
 -type validation_error() :: {'invalid_json', {error_reason(), any()},
                              external_parameters()}.
@@ -70,33 +78,6 @@ parse(ValidationSpec, JsonFields) ->
             % We should maybe log something here with Lager?
             {invalid_json, Reason, JsonFields}
     end.
-
-%%%----------------------------------------------------------------------------
-%%% @doc It returns the validation spec for each resource defined. This might
-%%% be removed and each resource should be exporting its own validation_spec
-%%% function in its own module instead.
-%%% @end
-%%%----------------------------------------------------------------------------
--spec validation_spec(resource_type()) -> validation_spec().
-validation_spec(ancillary) ->
-    [{<<"masterCode">>, mandatory, integer},
-     {<<"serviceProviderId">>, mandatory, string},
-     {<<"subCode">>, mandatory, string},
-     {<<"groupCode">>, mandatory, string},
-     {<<"subGroup">>, mandatory, string},
-     {<<"description1">>, mandatory, string},
-     {<<"description2">>, mandatory, string},
-     {<<"imageThumbnailUrl">>, mandatory, string},
-     {<<"imageLargeUrl">>, mandatory, string},
-     {<<"toolTip">>, mandatory, string},
-     {<<"price">>, mandatory, float},
-     {<<"currency">>, mandatory, string},
-     {<<"tax">>, mandatory, float},
-     {<<"isDiscount">>, mandatory, string},
-     {<<"discountDesc">>, mandatory, string},
-     {<<"iscountPcnt">>, mandatory, float},
-     {<<"commercialName">>, mandatory, string},
-     {<<"RFIC">>, mandatory, string}].
 
 %%%----------------------------------------------------------------------------
 %%% Internal functions.
@@ -207,6 +188,8 @@ type_validation(Name, Value, string) when is_binary(Value) ->
         false ->
             throw({badtype_parameter, Name})
     end;
+type_validation(_Name, Value, json) ->
+    Value;
 type_validation(Name, _, _) ->
     throw({badtype_parameter, Name}).
 

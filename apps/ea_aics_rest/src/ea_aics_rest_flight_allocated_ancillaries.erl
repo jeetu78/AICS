@@ -2,10 +2,8 @@
 %%% @author Alexej Tessaro <alexej.tessaro@erlang-solutions.com>
 %%% @doc The Ancillary Inventory Control System rest interface
 %%% flight allocated ancillaries resource
-%%%
 %%% @end
 %%%=============================================================================
-
 -module(ea_aics_rest_flight_allocated_ancillaries).
 
 -ifdef(TEST).
@@ -23,41 +21,54 @@
 -include_lib("ea_aics_core/include/ea_aics_core.hrl").
 -include("ea_aics_rest.hrl").
 
-%% ===================================================================
+%%=============================================================================
 %%  API
-%% ===================================================================
+%% ============================================================================
 
-%%------------------------------------------------------------------------------
+%%-----------------------------------------------------------------------------
 %% @doc Implements HTTP REST on a resource of flight allocated-ancillaries type.
-%%
 %% @end
-%%------------------------------------------------------------------------------
-
+%%-----------------------------------------------------------------------------
 -spec process(atom(), #arg{}, [string()]) -> list().
 
 process('POST', WebArg, ["flights", Uri_FlightId, "allocated-ancillaries"] = Path) ->
-    %% TODO JSON input processing here
-    Inputs = [_AllocatedAncillaryInventoryId = <<"foo">>,
-     _AllocatedAncillaryAllocatedQuantity = 1,
-     _AllocatedAncillaryAvailableQuantity = 1,
-     _AllocatedAncillaryModifiedTime = <<"foo">>],
-    HttpRequestContentBody = WebArg#arg.clidata,
-    JsonInput = ea_aics_rest_utils:json_decode(HttpRequestContentBody),
-    {<<"ancillary">>, JsonInput_AncillaryResource} = lists:keyfind(<<"ancillary">>, 1, JsonInput),
-    {<<"id">>, JsonInput_AncillaryId} = lists:keyfind(<<"id">>, 1, JsonInput_AncillaryResource),
-    FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
-    {ok, #ea_aics_allocated_ancillary{} = AllocatedAncillary} =
-        ea_aics_store_allocated_ancillaries:create(FlightId, JsonInput_AncillaryId, Inputs),
-    JsonView = json_view_allocated_ancillary(WebArg, Path, FlightId, AllocatedAncillary),
-    HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
-    HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
-    HttpContent = {content, HttpContentType, HttpContentBody},
-    AllocatedAncillaryId = AllocatedAncillary#ea_aics_allocated_ancillary.id,
-    ResourceInstanceUri = resource_instance_uri(WebArg, Path, FlightId, AllocatedAncillaryId),
-    HttpStatus = {status, ?HTTP_201},
-    HeaderLocation = {"Location", ResourceInstanceUri},
-    HttpHeaders = {allheaders, [{header, HeaderLocation}]},
-    [HttpContent, HttpStatus, HttpHeaders];
+    Body = yaws_api:arg_clidata(WebArg),
+    Json = ea_aics_rest_utils:json_decode(Body),
+    case ea_aics_rest_json:parse(validation_spec(), Json) of
+        {invalid_json, Reason, JsonFields} ->
+            lager:info("Invalid JSON allocated-ancillaries. Reason: ~p, Input: ~p",
+                       [Reason,JsonFields]),
+            [{status, ?HTTP_400}];
+        Values ->
+            %% TODO JSON input processing here
+            Inputs = [_AllocatedAncillaryInventoryId = <<"foo">>,
+                      _AllocatedAncillaryAllocatedQuantity = 1,
+                      _AllocatedAncillaryAvailableQuantity = 1,
+                      _AllocatedAncillaryModifiedTime = <<"foo">>],
+            {<<"ancillary">>, JsonInput_AncillaryResource}
+                = lists:keyfind(<<"ancillary">>, 1, Values),
+            {<<"id">>, JsonInput_AncillaryId} = lists:keyfind(
+                    <<"id">>, 1, JsonInput_AncillaryResource),
+            FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
+            {ok, #ea_aics_allocated_ancillary{} = AllocatedAncillary}
+                = ea_aics_store_allocated_ancillaries:create(FlightId,
+                                                             JsonInput_AncillaryId,
+                                                             Inputs),
+            JsonView = json_view_allocated_ancillary(WebArg,
+                                                     Path, FlightId,
+                                                     AllocatedAncillary),
+            HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
+            HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
+            HttpContent = {content, HttpContentType, HttpContentBody},
+            AllocatedAncillaryId = AllocatedAncillary#ea_aics_allocated_ancillary.id,
+            ResourceInstanceUri = resource_instance_uri(WebArg, Path,
+                                                        FlightId,
+                                                        AllocatedAncillaryId),
+            HttpStatus = {status, ?HTTP_201},
+            HeaderLocation = {"Location", ResourceInstanceUri},
+            HttpHeaders = {allheaders, [{header, HeaderLocation}]},
+            [HttpContent, HttpStatus, HttpHeaders]
+    end;
 process('GET', WebArg, ["flights", Uri_FlightId, "allocated-ancillaries"] = Path) ->
     FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
     {ok, AllocatedAncillaries} = ea_aics_store_allocated_ancillaries:read(FlightId),
@@ -92,7 +103,6 @@ process(_Method, _WebArg, _Path) ->
 
 %%------------------------------------------------------------------------------
 %% @doc Allocated-ancillary type resource instance JSON intermediate format.
-%%
 %% @end
 %%------------------------------------------------------------------------------
 
@@ -110,7 +120,6 @@ json_view_allocated_ancillary(WebArg, Path, FlightId, #ea_aics_allocated_ancilla
 
 %%------------------------------------------------------------------------------
 %% @doc Allocated-ancillaries type resource collection JSON intermediate format.
-%%
 %% @end
 %%------------------------------------------------------------------------------
 
@@ -121,9 +130,9 @@ json_view_allocated_ancillaries(WebArg, Path, FlightId, AllocatedAncillaries) wh
      {<<"allocatedAncillaries">>, [json_view_allocated_ancillary(WebArg, Path, FlightId, AllocatedAncillary) ||
         AllocatedAncillary <- AllocatedAncillaries]}].
 
-%% ===================================================================
+%%=============================================================================
 %%  Internal Functions
-%% ===================================================================
+%%=============================================================================
 
 resource_collection_uri(_WebArg, _Path, FlightId) ->
     % TODO ResourceContext should be managed by web configuration
@@ -139,9 +148,15 @@ resource_instance_uri(WebArg, Path, FlightId, AllocatedAncillaryId) ->
     Separator = <<"/">>,
     <<ResourceCollectionUri/binary, Separator/binary, AllocatedAncillaryId/binary>>.
 
-%% ===================================================================
+validation_spec() ->
+    [{<<"inventoryid">>, optional, integer},
+     {<<"allocatedQuantity">>, optional, integer},
+     {<<"availableQuantity">>, optional, integer},
+     {<<"ancillary">>, mandatory, json}].
+
+%%=============================================================================
 %%  Tests
-%% ===================================================================
+%%=============================================================================
 
 -ifdef(TEST).
 
