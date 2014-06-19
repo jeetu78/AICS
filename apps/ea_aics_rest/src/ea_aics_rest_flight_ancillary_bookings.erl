@@ -113,9 +113,22 @@ json_view_ancillary_booking(WebArg, Path, FlightId, #ea_aics_ancillary_booking{}
     ResourceUri = resource_instance_uri(WebArg, Path, FlightId, AncillaryBookingId),
     AncillaryBooking_AllocatedAncillary = AncillaryBooking#ea_aics_ancillary_booking.allocated_ancillary,
     AncillaryBooking_AllocatedAncillaryJsonView =
-        ea_aics_rest_flight_allocated_ancillaries:json_view_allocated_ancillary(WebArg, Path, FlightId, AncillaryBooking_AllocatedAncillary),
+        ea_aics_rest_flight_allocated_ancillaries:json_view_allocated_ancillary(WebArg,
+            Path, FlightId, AncillaryBooking_AllocatedAncillary),
     [{<<"href">>, ResourceUri},
      {<<"id">>, AncillaryBookingId},
+     {<<"txnId">>,
+      ea_aics_rest_utils:record_to_json_value(AncillaryBooking#ea_aics_ancillary_booking.txn_id)},
+     {<<"customerId">>,
+      ea_aics_rest_utils:record_to_json_value(AncillaryBooking#ea_aics_ancillary_booking.customer_id)},
+     {<<"operationType">>,
+      ea_aics_rest_utils:record_to_json_value(AncillaryBooking#ea_aics_ancillary_booking.operation_type)},
+     {<<"bookingTime">>,
+      ea_aics_rest_utils:record_to_json_value(AncillaryBooking#ea_aics_ancillary_booking.booking_time)},
+     {<<"quantity">>,
+      ea_aics_rest_utils:record_to_json_value(AncillaryBooking#ea_aics_ancillary_booking.quantity)},
+     {<<"modifiedTime">>,
+      ea_aics_rest_utils:record_to_json_value(AncillaryBooking#ea_aics_ancillary_booking.modified_time)},
      {<<"allocatedAncillary">>, AncillaryBooking_AllocatedAncillaryJsonView}].
 
 %%------------------------------------------------------------------------------

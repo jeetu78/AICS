@@ -14,7 +14,8 @@
 
 -export([json_encode/1,
          json_decode/1,
-         parse_uri_id/1]).
+         parse_uri_id/1,
+         record_to_json_value/1]).
 
 -export_type([]).
 
@@ -38,6 +39,15 @@ json_decode(Binary) when is_binary(Binary) ->
 
 parse_uri_id(Uri_Id) ->
     list_to_binary(Uri_Id).
+
+-spec record_to_json_value(term()) -> term().
+
+record_to_json_value(undefined) ->
+    null;
+record_to_json_value({datetime, Datetime}) ->
+    iso8601:format(Datetime);
+record_to_json_value(Value) ->
+    Value.
 
 %% ===================================================================
 %%  Internal Functions
