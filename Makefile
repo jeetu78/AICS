@@ -56,7 +56,7 @@ ciclean: distclean
 	rm -rvf $(DEPSOLVER_PLT)
 	rm -rvf ./deps/*
 
-stest: stestclean rel
+stest: stestclean
 	ct_run -dir ./stest -logdir stest/log -name ct_ea@127.0.0.1 \
 		-pa deps/*/ebin -noshell -hidden
 
