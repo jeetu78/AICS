@@ -37,6 +37,12 @@
 -type record_field_value() :: integer() | boolean() | binary() |
     string() | float().
 
+-type validation_error() :: {'invalid_json', {error_reason(), any()},
+                             external_parameters()}.
+
+-type error_reason() :: 'missing_parameter' | 'unknown_parameter' |
+    'badtype_parameter' | 'duplicated_parameters' | 'unexpected_json'.
+
 %%%----------------------------------------------------------------------------
 %%% API functions
 %%%----------------------------------------------------------------------------
@@ -52,7 +58,8 @@
 %%% @end
 %%%----------------------------------------------------------------------------
 %-spec parse(external_spec()) -> internal_spec().
--spec parse(validation_spec(), external_parameters()) -> internal_parameters().
+-spec parse(validation_spec(), external_parameters()) ->
+    internal_parameters() | validation_error().
 parse(ValidationSpec, JsonFields) ->
     try
         validate(ValidationSpec, JsonFields)
@@ -80,6 +87,7 @@ validation_spec(ancillary) ->
      {<<"description1">>, mandatory, string},
      {<<"description2">>, mandatory, string},
      {<<"imageThumbnailUrl">>, mandatory, string},
+     {<<"imageLargeUrl">>, mandatory, string},
      {<<"toolTip">>, mandatory, string},
      {<<"price">>, mandatory, float},
      {<<"currency">>, mandatory, string},
@@ -96,11 +104,23 @@ validation_spec(ancillary) ->
 -spec validate(validation_spec(), external_parameters()) ->
     internal_parameters().
 validate(ValidationSpec, Fields) ->
-    %ValidationSpec = validation_spec(ResourceType),
+    validate_simple_json(Fields),
     validate_mandatory(ValidationSpec, Fields),
     validate_unknown(ValidationSpec, Fields),
     validate_duplicated(ValidationSpec, Fields),
     validate_type(ValidationSpec, Fields).
+
+% If it is a list of JSONs, we return an error.
+-spec validate_simple_json(external_parameters()) -> ok | 'no_return'.
+validate_simple_json(Fields) ->
+    lists:foreach(fun(Field) ->
+                case is_list(Field) of
+                    false ->
+                        ok;
+                    true ->
+                        throw({unexpected_json, Fields})
+                end
+        end, Fields).
 
 -spec validate_mandatory(validation_spec(), external_parameters()) ->
     ok | 'no_return'.
@@ -123,6 +143,10 @@ check_mandatory(Name, Fields) ->
 
 -spec validate_unknown(validation_spec(), external_parameters()) ->
     ok | 'no_return'.
+validate_unknown(_ValidationSpec, []) ->
+    ok;
+validate_unknown(_ValidationSpec, [{}])->
+    throw({unknown_parameter, {}});
 validate_unknown(ValidationSpec, Fields) ->
     ValidFields = [Field || {Field, _, _} <- ValidationSpec],
     lists:foreach(fun({Field, _}) ->
@@ -235,5 +259,34 @@ validator_valid_input_test_() ->
               {<<"value4">>, 4},
               {<<"value5">>, 4.9}],
     ?_assertMatch(Fields, validate(Spec, Fields)).
+
+validator_edge_case_1_test_() ->
+    Spec = [{<<"value1">>, optional, binary},
+            {<<"value2">>, optional, boolean}],
+    Fields = [],
+    ?_assertMatch(Fields, validate(Spec, Fields)).
+
+validator_edge_case_2_test_() ->
+    Spec = [{<<"value1">>, optional, binary},
+            {<<"value2">>, mandatory, boolean}],
+    Fields = [],
+    ?_assertThrow({missing_parameter, <<"value2">>}, validate(Spec, Fields)).
+
+validator_edge_case_3_test_() ->
+    Spec = [{<<"value1">>, optional, binary},
+            {<<"value2">>, mandatory, boolean}],
+    Fields = [{}],
+    ?_assertThrow({missing_parameter, <<"value2">>}, validate(Spec, Fields)).
+
+validator_edge_case_4_test_() ->
+    Spec = [{<<"value1">>, optional, binary}],
+    Fields = [{}],
+    ?_assertThrow({unknown_parameter, {}}, validate(Spec, Fields)).
+
+%We are not accepting lists of JSONs, just plain objects.
+validator_list_of_jsons_test_() ->
+    Spec = [{<<"value1">>, optional, binary}],
+    Fields = [[{}],[{}],[{<<"spain">>,<<"lost">>}]],
+    ?_assertThrow({unexpected_json, Fields}, validate(Spec, Fields)).
 
 -endif.
