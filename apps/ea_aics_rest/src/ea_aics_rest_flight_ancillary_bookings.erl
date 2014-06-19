@@ -39,19 +39,7 @@ process('POST', WebArg, ["flights", Uri_FlightId, "ancillary-bookings"] = Path) 
             [{status, ?HTTP_400}];
         Values ->
             FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
-            {<<"allocatedAncillary">>,
-             JsonInput_AllocatedAncillaryResource} = lists:keyfind(
-                    <<"allocatedAncillary">>, 1, Values),
-            {<<"id">>, JsonInput_AllocatedAncillaryId} = lists:keyfind(
-                    <<"id">>, 1, JsonInput_AllocatedAncillaryResource),
-            %% TODO JSON input processing here
-            AncillaryBookingInput =
-                #ea_aics_ancillary_booking{customer_id = <<"foo">>,
-                                           txn_id = 111,
-                                           operation_type = <<"foo">>,
-                                           booking_time = <<"foo">>,
-                                           quantity = 1,
-                                           allocated_ancillary = JsonInput_AllocatedAncillaryId},
+            AncillaryBookingInput = json_to_record(Values),
             {ok, #ea_aics_ancillary_booking{} = AncillaryBooking}
                 = ea_aics_store_ancillary_bookings:create(FlightId,
                                                           AncillaryBookingInput),
@@ -156,9 +144,21 @@ validation_spec() ->
      {<<"customerId">>, optional, string},
      {<<"allocatedAncillary">>, mandatory, json}].
 
-%% ===================================================================
+json_to_record(JsonInput) ->
+    AllocatedAncillary = proplists:get_value(<<"allocatedAncillary">>,
+                                             JsonInput),
+    Id = proplists:get_value(<<"Id">>, AllocatedAncillary),
+    #ea_aics_ancillary_booking{
+        customer_id = proplists:get_value(<<"customerId">>, JsonInput),
+        txn_id = proplists:get_value(<<"ancTxnId">>, JsonInput),
+        operation_type = proplists:get_value(<<"operationType">>, JsonInput),
+        booking_time = proplists:get_value(<<"bookingTime">>, JsonInput),
+        quantity = proplists:get_value(<<"quantity">>, JsonInput),
+        allocated_ancillary = Id}.
+
+%%=============================================================================
 %%  Tests
-%% ===================================================================
+%%=============================================================================
 
 -ifdef(TEST).
 
