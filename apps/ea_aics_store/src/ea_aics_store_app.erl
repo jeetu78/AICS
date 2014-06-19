@@ -6,18 +6,14 @@
 %%%=============================================================================
 
 -module(ea_aics_store_app).
-
--ifdef(TEST).
--include_lib("eqc/include/eqc.hrl").
--include_lib("eunit/include/eunit.hrl").
--endif.
+-include_lib("ea_aics_store.hrl").
 
 -behaviour(application).
 -export([start/2, stop/1]).
 
 -behaviour(supervisor).
 -export([init/1]).
-
+-export([getDBConfig/0]).
 -export_type([]).
 
 -define(SCOPE, local).
@@ -37,16 +33,16 @@
 %% ===================================================================
 
 start(_Type, _StartArgs) ->
-    {ok, PoolerSupervisorPid} = supervisor:start_link({?SCOPE, ?MODULE}, ?MODULE, []),
-    PoolConfig = [{name, memsql},
-                  {max_count, 1},
-                  {init_count, 1},
-                  {start_mfa,
-                    {mysql_conn,
-                     start_link,
-                     ["127.0.0.1", 3306, "root", "", "AICS", fun(_, _, _, _) -> ok end, utf8, memsql]}}],
-    {ok, _PoolPid} = pooler:new_pool(PoolConfig),
-    {ok, PoolerSupervisorPid}.
+    {ok, SupervisorPid} = supervisor:start_link({?SCOPE, ?MODULE}, ?MODULE, []),
+%%     PoolConfig = [{name, memsql},
+%%                   {max_count, 1},
+%%                   {init_count, 1},
+%%                   {start_mfa,
+%%                     {mysql_conn,
+%%                      start_link,
+%%                      ["127.0.0.1", 3306, "root", "", "AICS", fun(_, _, _, _) -> ok end, utf8, memsql]}}],
+%%     {ok, _PoolPid} = pooler:new_pool(PoolConfig),
+    {ok, SupervisorPid}.
 
 stop(_State) ->
     ok.
@@ -56,36 +52,17 @@ stop(_State) ->
 %% ===================================================================
 
 init([]) ->
-    PoolerSup = pooler_supervisor_child_spec(),
-    {ok, {{one_for_one, 0, 1}, [PoolerSup]}}.
+    GenServerWorker = pooler_supervisor_child_spec(),
+    {ok, {{one_for_one, 0, 1}, [GenServerWorker]}}.
 
 %% ===================================================================
 %%  Internal Functions
 %% ===================================================================
 
 pooler_supervisor_child_spec() ->
-    {pooler_sup, {pooler_sup, start_link, []},
-        permanent, infinity, supervisor, [pooler_sup]}.
+	DBConfig=getDBConfig(),
+    {conn_sup, {connectionServer, start_server, [DBConfig]},
+        permanent, 5000, worker, [connectionServer]}.
 
-%% ===================================================================
-%%  Tests
-%% ===================================================================
-
--ifdef(TEST).
-
-sanity_test_() ->
-    [
-        ?_assertMatch(local, ?SCOPE)
-    ].
-
-callback_test_() ->
-
-    PoolerSup = pooler_supervisor_child_spec(),
-
-    [
-        ?_assertMatch(ok, stop([])),
-        ?_assertMatch({ok, Pid} when is_pid(Pid), start(temporary, [])),
-        ?_assertMatch({ok, {{one_for_one, 0, 1}, [PoolerSup]}}, init([]))
-    ].
-
--endif.
+getDBConfig() ->
+	#dbConfig{host="192.168.1.23",port=3306,database="AICS_NEW",user="root",password=""}.
