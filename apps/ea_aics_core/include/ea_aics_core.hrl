@@ -1,5 +1,5 @@
 -record(ea_aics_ancillary, {id  :: binary(),
-                            master_code :: binary(),
+                            master_code :: integer(),
                             service_provider_id :: binary(),
                             sub_code :: binary(),
                             group_code :: binary(),
@@ -26,8 +26,8 @@
                                       allocated_quantity :: non_neg_integer(),
                                       available_quantity :: non_neg_integer(),
                                       modified_time :: binary(),
-                                      flight    :: #ea_aics_flight{},
-                                      ancillary :: #ea_aics_ancillary{}}).
+                                      flight    :: binary() | #ea_aics_flight{},
+                                      ancillary :: binary() | #ea_aics_ancillary{}}).
 
 -record(ea_aics_ancillary_booking, {id  :: binary(),
                                     txn_id :: integer(),
@@ -36,4 +36,4 @@
                                     booking_time :: binary(),
                                     quantity :: integer(),
                                     modified_time :: binary(),
-                                    allocated_ancillary :: #ea_aics_allocated_ancillary{}}).
+                                    allocated_ancillary :: binary() | #ea_aics_allocated_ancillary{}}).

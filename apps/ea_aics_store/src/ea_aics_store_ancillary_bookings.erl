@@ -13,7 +13,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([create/3,
+-export([create/2,
          read/1,
          read/2,
          update/3,
@@ -37,13 +37,12 @@
 %% @end
 %%------------------------------------------------------------------------------
 
--spec create(binary(), binary(), term()) -> {ok, #ea_aics_ancillary_booking{}}.
+-spec create(binary(), #ea_aics_ancillary_booking{}) -> {ok, #ea_aics_ancillary_booking{}}.
 
-create(FlightId, AllocatedAncillaryId, AncillaryBookingInputs) ->
+create(FlightId, AncillaryBookingInput) ->
     ea_aics_store:do_query(
         fun(ConnectionPid) ->
-            do_create_transaction(ConnectionPid, FlightId, AllocatedAncillaryId,
-                AncillaryBookingInputs)
+            do_create_transaction(ConnectionPid, FlightId, AncillaryBookingInput)
         end).
 
 %%------------------------------------------------------------------------------
@@ -128,12 +127,12 @@ result_fields_keys() ->
 %% Internal functions
 %% ===================================================================
 
-do_create_transaction(ConnectionPid, FlightId, AllocatedAncillaryId, AncillaryBookingInputs) ->
+do_create_transaction(ConnectionPid, FlightId, AncillaryBookingInput) ->
     {atomic, Response} =
         mysql_conn:transaction(ConnectionPid,
             fun() ->
                 {ok, AncillaryBookingId} = do_create(ConnectionPid, FlightId,
-                    AllocatedAncillaryId, AncillaryBookingInputs),
+                    AncillaryBookingInput),
                 {ok, AncillaryBooking} = do_read(ConnectionPid, FlightId,
                     AncillaryBookingId),
                 {atomic, {ok, AncillaryBooking}}
@@ -156,10 +155,10 @@ do_update_transaction(ConnectionPid, FlightId, AncillaryBookingId, AncillaryBook
             end, self()),
     Response.
 
-do_create(ConnectionPid, FlightId, AllocatedAncillaryId, AncillaryBookingInputs) ->
+do_create(ConnectionPid, FlightId, AncillaryBookingInput) ->
     AncillaryBookingId = ea_aics_store:generate_uuid(),
     RecordFieldsInputs = record_fields(AncillaryBookingId, FlightId,
-        AllocatedAncillaryId, AncillaryBookingInputs),
+        AncillaryBookingInput),
     Query = sqerl:sql({insert, 'ANCILLARY_TX', RecordFieldsInputs}, true),
     {updated, QueryResult} = ea_aics_store:do_fetch(ConnectionPid, Query),
     #mysql_result{affectedrows = 1} = QueryResult,
@@ -243,10 +242,32 @@ record_fields_keys() ->
     ['UUID', 'ANCILLARY_INVENTORY_UUID', 'CUSTOMER_UUID', 'ANC_TXN_ID',
         'OPERATION_TYPE', 'BOOKING_TIME', 'QUANTITY', 'MODIFIED_TIME'].
 
-record_fields(AncillaryBookingId, _FlightId, AllocatedAncillaryId,
-        AncillaryBookingInputs) ->
-    lists:zip(record_fields_keys(), [AncillaryBookingId,
-        AllocatedAncillaryId | AncillaryBookingInputs]).
+record_input_values(AncillaryBookingId, AncillaryBookingInput) ->
+    AllocatedAncillaryId =
+        record_input_value(AncillaryBookingInput#ea_aics_ancillary_booking.allocated_ancillary),
+    AncBook_CustomerId =
+        record_input_value(AncillaryBookingInput#ea_aics_ancillary_booking.customer_id),
+    AncBook_TransactionId =
+        record_input_value(AncillaryBookingInput#ea_aics_ancillary_booking.txn_id),
+    AncBook_OperationType =
+        record_input_value(AncillaryBookingInput#ea_aics_ancillary_booking.operation_type),
+    AncBook_BookingTime =
+        record_input_value(AncillaryBookingInput#ea_aics_ancillary_booking.booking_time),
+    AncBook_Quantity =
+        record_input_value(AncillaryBookingInput#ea_aics_ancillary_booking.quantity),
+    [AncillaryBookingId, AllocatedAncillaryId, AncBook_CustomerId,
+        AncBook_TransactionId, AncBook_OperationType, AncBook_BookingTime,
+        AncBook_Quantity].
+
+record_input_value(undefined) ->
+    null;
+record_input_value(Value) ->
+    Value.
+
+record_fields(AncillaryBookingId, _FlightId, AncillaryBookingInput) ->
+    Fields = ['UUID', 'ANCILLARY_INVENTORY_UUID', 'CUSTOMER_UUID', 'ANC_TXN_ID',
+        'OPERATION_TYPE', 'BOOKING_TIME', 'QUANTITY'],
+    lists:zip(Fields, record_input_values(AncillaryBookingId, AncillaryBookingInput)).
 
 %% ===================================================================
 %%  Tests
@@ -273,7 +294,7 @@ module_test_() ->
                     FlightId = <<"4cbd913e6d5d449ea0e4b53606c01f1b">>,
                     AllocatedAncillaryId = <<"c25a06bb2764493d97fbecbda9300b67">>,
                     AncillaryBookingId = <<"0575d95b0beb444186cd41a555f43daa">>,
-                    AncillaryBookingInputs = ea_aics_store_test:ancillary_booking_input(),
+                    AncillaryBookingInput = ea_aics_store_test:ancillary_booking_input(AllocatedAncillaryId),
 
                     ok = meck:new(uuid, [non_strict, passthrough]),
                     ok = meck:expect(uuid, get_v4, [], AncillaryBookingId),
@@ -281,7 +302,8 @@ module_test_() ->
 
                     ok = meck:expect(mysql_conn, fetch, ['_', '_', '_'], {updated, #mysql_result{affectedrows = 1}}),
 
-                    ?assertMatch({ok, AncillaryBookingId}, do_create(ConnectionPid, FlightId, AllocatedAncillaryId, AncillaryBookingInputs)),
+                    ?assertMatch({ok, AncillaryBookingId},
+                        do_create(ConnectionPid, FlightId, AncillaryBookingInput)),
 
                     ok = meck:wait(uuid, get_v4, '_', 1000),
 

@@ -38,23 +38,23 @@ process('POST', WebArg, ["flights", Uri_FlightId, "ancillary-bookings"] = Path) 
                        [Reason,JsonFields]),
             [{status, ?HTTP_400}];
         Values ->
-            %% TODO JSON input processing here
-            Inputs = [_AncillaryBookingCustomerId = <<"foo">>,
-                      _AncillaryBookingTransactionId = <<"foo">>,
-                      _AncillaryBookingOperationType = <<"foo">>,
-                      _AncillaryBookingBookingTime = <<"foo">>,
-                      _AncillaryBookingQuantity = 1,
-                      _AncillaryBookingModifiedTime = <<"foo">>],
+            FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
             {<<"allocatedAncillary">>,
              JsonInput_AllocatedAncillaryResource} = lists:keyfind(
                     <<"allocatedAncillary">>, 1, Values),
             {<<"id">>, JsonInput_AllocatedAncillaryId} = lists:keyfind(
                     <<"id">>, 1, JsonInput_AllocatedAncillaryResource),
-            FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
+            %% TODO JSON input processing here
+            AncillaryBookingInput =
+                #ea_aics_ancillary_booking{customer_id = <<"foo">>,
+                                           txn_id = 111,
+                                           operation_type = <<"foo">>,
+                                           booking_time = <<"foo">>,
+                                           quantity = 1,
+                                           allocated_ancillary = JsonInput_AllocatedAncillaryId},
             {ok, #ea_aics_ancillary_booking{} = AncillaryBooking}
                 = ea_aics_store_ancillary_bookings:create(FlightId,
-                                                      JsonInput_AllocatedAncillaryId,
-                                                      Inputs),
+                                                          AncillaryBookingInput),
             ok = ea_aics_mq:produce(AncillaryBooking),
             JsonView = json_view_ancillary_booking(WebArg, Path, FlightId,
                                                    AncillaryBooking),
@@ -189,7 +189,7 @@ module_test_() ->
                     AncillaryBooking = #ea_aics_ancillary_booking{id = <<"111">>,
                                                                   allocated_ancillary = AllocatedAncillary},
 
-                    ok = meck:expect(ea_aics_store_ancillary_bookings, create, ['_', '_', '_'], {ok, AncillaryBooking}),
+                    ok = meck:expect(ea_aics_store_ancillary_bookings, create, ['_', '_'], {ok, AncillaryBooking}),
 
                     HttpRequestMethod = 'POST',
                     HttpRequestContentBody = <<"{\"allocatedAncillary\": {\"id\": \"111\"}}">>,

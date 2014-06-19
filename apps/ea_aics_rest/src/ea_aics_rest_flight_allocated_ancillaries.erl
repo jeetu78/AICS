@@ -40,20 +40,21 @@ process('POST', WebArg, ["flights", Uri_FlightId, "allocated-ancillaries"] = Pat
                        [Reason,JsonFields]),
             [{status, ?HTTP_400}];
         Values ->
-            %% TODO JSON input processing here
-            Inputs = [_AllocatedAncillaryInventoryId = <<"foo">>,
-                      _AllocatedAncillaryAllocatedQuantity = 1,
-                      _AllocatedAncillaryAvailableQuantity = 1,
-                      _AllocatedAncillaryModifiedTime = <<"foo">>],
+            FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
             {<<"ancillary">>, JsonInput_AncillaryResource}
                 = lists:keyfind(<<"ancillary">>, 1, Values),
             {<<"id">>, JsonInput_AncillaryId} = lists:keyfind(
                     <<"id">>, 1, JsonInput_AncillaryResource),
-            FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
+            %% TODO JSON input processing here
+            AllocatedAncillaryInput =
+                #ea_aics_allocated_ancillary{inventory_id = <<"foo">>,
+                                             allocated_quantity = 1,
+                                             available_quantity = 1,
+                                             flight = FlightId,
+                                             ancillary = JsonInput_AncillaryId},
             {ok, #ea_aics_allocated_ancillary{} = AllocatedAncillary}
                 = ea_aics_store_allocated_ancillaries:create(FlightId,
-                                                             JsonInput_AncillaryId,
-                                                             Inputs),
+                                                             AllocatedAncillaryInput),
             JsonView = json_view_allocated_ancillary(WebArg,
                                                      Path, FlightId,
                                                      AllocatedAncillary),
@@ -179,7 +180,7 @@ module_test_() ->
                     Resource = #ea_aics_allocated_ancillary{id = <<"111">>,
                                                             ancillary = #ea_aics_ancillary{id = <<"111">>}},
 
-                    ok = meck:expect(ea_aics_store_allocated_ancillaries, create, ['_', '_', '_'], {ok, Resource}),
+                    ok = meck:expect(ea_aics_store_allocated_ancillaries, create, ['_', '_'], {ok, Resource}),
 
                     HttpRequestMethod = 'POST',
                     HttpRequestContentBody = <<"{\"ancillary\": {\"id\": \"111\"}}">>,
