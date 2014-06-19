@@ -7,13 +7,7 @@
 
 -module(ea_aics_store).
 
--ifdef(TEST).
--include_lib("eqc/include/eqc.hrl").
--include_lib("eunit/include/eunit.hrl").
--endif.
-
--export([do_query/1,
-         generate_uuid/0]).
+-export([generate_uuid/0]).
 
 -export_type([]).
 
@@ -27,13 +21,11 @@
 %% @end
 %%------------------------------------------------------------------------------
 
--spec do_query(fun()) -> term().
-
-do_query(OperationFun) ->
-    ConnectionPid = pooler:take_member(memsql),
-    Result = OperationFun(ConnectionPid),
-    ok = pooler:return_member(memsql, ConnectionPid, ok),
-    Result.
+%% -spec do_query(fun()) -> term().
+%% 
+%% do_query(OperationFun) ->
+%%     OperationFun().
+%%   
 
 %%------------------------------------------------------------------------------
 %% @doc Generates a UUID (Globally Unique Identifier)
@@ -45,11 +37,3 @@ do_query(OperationFun) ->
 
 generate_uuid() ->
     uuid:get_v4().
-
-%% ===================================================================
-%%  Tests
-%% ===================================================================
-
--ifdef(TEST).
-
--endif.
