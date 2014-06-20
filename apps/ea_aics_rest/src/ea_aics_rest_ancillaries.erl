@@ -40,28 +40,8 @@ process('POST', WebArg, ["ancillaries"] = Path) ->
             lager:info("Invalid JSON ancillary. Reason: ~p, Input: ~p",
                         [Reason,JsonFields]),
             [{status, ?HTTP_400}];
-        _Values ->
-            %% TODO JSON input processing here
-            AncillaryInput =
-                #ea_aics_ancillary{master_code = 111,
-                                   service_provider_id = <<"foo">>,
-                                   sub_code = <<"foo">>,
-                                   group_code = <<"foo">>,
-                                   sub_group = <<"foo">>,
-                                   description1 = <<"foo">>,
-                                   description2 = <<"foo">>,
-                                   image_thumbnail_url = <<"foo">>,
-                                   image_large_url = <<"foo">>,
-                                   tooltip = <<"foo">>,
-                                   price = 1.0,
-                                   currency = <<"foo">>,
-                                   tax = 1.0,
-                                   is_discount = <<"foo">>,
-                                   discount_desc = <<"foo">>,
-                                   discount_pcnt = 1.0,
-                                   commercial_name = <<"foo">>,
-                                   rfic = <<"foo">>},
-            {ok, Ancillary} = ea_aics_store_ancillaries:create(AncillaryInput),
+        Values ->
+            {ok, Ancillary} = ea_aics_store_ancillaries:create(json_to_record(Values)),
             JsonView = json_view_ancillary(WebArg, Path, Ancillary),
             HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
             HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
@@ -149,6 +129,7 @@ validation_spec() ->
      {<<"description1">>, optional, string},
      {<<"description2">>, optional, string},
      {<<"imageThumbnailUrl">>, optional, string},
+     {<<"imageLargeUrl">>, optional, string},
      {<<"toolTip">>, optional, string},
      {<<"price">>, optional, float},
      {<<"currency">>, optional, string},
@@ -158,6 +139,29 @@ validation_spec() ->
      {<<"iscountPcnt">>, optional, float},
      {<<"commercialName">>, optional, string},
      {<<"RFIC">>, optional, string}].
+
+json_to_record(JsonInput) ->
+    #ea_aics_ancillary{
+        master_code = proplists:get_value(<<"masterCode">>, JsonInput),
+        service_provider_id = proplists:get_value(<<"serviceProviderId">>,
+                                                  JsonInput),
+        sub_code = proplists:get_value(<<"subCode">>, JsonInput),
+        group_code = proplists:get_value(<<"groupCode">>, JsonInput),
+        sub_group = proplists:get_value(<<"subGroup">>, JsonInput),
+        description1 = proplists:get_value(<<"description1">>, JsonInput),
+        description2 = proplists:get_value(<<"description2">>, JsonInput),
+        image_thumbnail_url = proplists:get_value(<<"imageThumbnailUrl">>,
+                                                  JsonInput),
+        image_large_url = proplists:get_value(<<"imageLargeUrl">>, JsonInput),
+        tooltip = proplists:get_value(<<"toolTip">>, JsonInput),
+        price = proplists:get_value(<<"price">>, JsonInput),
+        currency = proplists:get_value(<<"currency">>, JsonInput),
+        tax = proplists:get_value(<<"tax">>, JsonInput),
+        is_discount = proplists:get_value(<<"isDiscount">>, JsonInput),
+        discount_desc = proplists:get_value(<<"discountDesc">>, JsonInput),
+        discount_pcnt = proplists:get_value(<<"iscountPcnt">>, JsonInput),
+        commercial_name = proplists:get_value(<<"commercialName">>, JsonInput),
+        rfic = proplists:get_value(<<"RFIC">>, JsonInput)}.
 
 %%=============================================================================
 %%  Tests

@@ -41,27 +41,19 @@ process('POST', WebArg, ["flights", Uri_FlightId, "allocated-ancillaries"] = Pat
             [{status, ?HTTP_400}];
         Values ->
             FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
-            {<<"ancillary">>, JsonInput_AncillaryResource}
-                = lists:keyfind(<<"ancillary">>, 1, Values),
-            {<<"id">>, JsonInput_AncillaryId} = lists:keyfind(
-                    <<"id">>, 1, JsonInput_AncillaryResource),
-            %% TODO JSON input processing here
-            AllocatedAncillaryInput =
-                #ea_aics_allocated_ancillary{inventory_id = <<"foo">>,
-                                             allocated_quantity = 1,
-                                             available_quantity = 1,
-                                             flight = FlightId,
-                                             ancillary = JsonInput_AncillaryId},
+            AllocatedAncillaryInput = json_to_record(Values, FlightId),
             {ok, #ea_aics_allocated_ancillary{} = AllocatedAncillary}
-                = ea_aics_store_allocated_ancillaries:create(FlightId,
-                                                             AllocatedAncillaryInput),
+                = ea_aics_store_allocated_ancillaries:create(
+                    FlightId,
+                    AllocatedAncillaryInput),
             JsonView = json_view_allocated_ancillary(WebArg,
                                                      Path, FlightId,
                                                      AllocatedAncillary),
             HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
             HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
             HttpContent = {content, HttpContentType, HttpContentBody},
-            AllocatedAncillaryId = AllocatedAncillary#ea_aics_allocated_ancillary.id,
+            AllocatedAncillaryId
+                = AllocatedAncillary#ea_aics_allocated_ancillary.id,
             ResourceInstanceUri = resource_instance_uri(WebArg, Path,
                                                         FlightId,
                                                         AllocatedAncillaryId),
@@ -106,7 +98,6 @@ process(_Method, _WebArg, _Path) ->
 %% @doc Allocated-ancillary type resource instance JSON intermediate format.
 %% @end
 %%------------------------------------------------------------------------------
-
 -spec json_view_allocated_ancillary(#arg{}, [string()], binary(), #ea_aics_allocated_ancillary{}) -> term().
 
 json_view_allocated_ancillary(WebArg, Path, FlightId, #ea_aics_allocated_ancillary{} = AllocatedAncillary) ->
@@ -123,7 +114,6 @@ json_view_allocated_ancillary(WebArg, Path, FlightId, #ea_aics_allocated_ancilla
 %% @doc Allocated-ancillaries type resource collection JSON intermediate format.
 %% @end
 %%------------------------------------------------------------------------------
-
 -spec json_view_allocated_ancillaries(#arg{}, [string()], binary(), [#ea_aics_ancillary{}]) -> term().
 
 json_view_allocated_ancillaries(WebArg, Path, FlightId, AllocatedAncillaries) when is_list(AllocatedAncillaries) ->
@@ -154,6 +144,18 @@ validation_spec() ->
      {<<"allocatedQuantity">>, optional, integer},
      {<<"availableQuantity">>, optional, integer},
      {<<"ancillary">>, mandatory, json}].
+
+json_to_record(JsonInput, FlightId) ->
+    Ancillary = proplists:get_value(<<"ancillary">>, JsonInput),
+    AncillaryId = proplists:get_value(<<"id">>, Ancillary),
+    #ea_aics_allocated_ancillary{
+        inventory_id = proplists:get_value(<<"masterCode">>, JsonInput),
+        allocated_quantity = proplists:get_value(<<"allocatedQuantity">>,
+                                                 JsonInput),
+        available_quantity = proplists:get_value(<<"availableQuantity">>,
+                                                 JsonInput),
+        flight = FlightId,
+        ancillary = AncillaryId}.
 
 %%=============================================================================
 %%  Tests
