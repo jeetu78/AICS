@@ -135,14 +135,12 @@ json_view_ancillary_bookings(WebArg, Path, FlightId, AncillaryBookings) when is_
 %%  Internal Functions
 %% ===================================================================
 
-resource_collection_uri(_WebArg, _Path, FlightId) ->
-    % TODO ResourceContext should be managed by web configuration
+resource_collection_uri(WebArg, _Path, FlightId) ->
     Separator = <<"/">>,
-    ResourceContext = <<(<<"http://localhost:8000/flights">>)/binary,
-                         Separator/binary,
-                         FlightId/binary>>,
+    Context = <<(<<"flights">>)/binary, Separator/binary, FlightId/binary>>,
+    ResourceContextUri = ea_aics_rest_utils:resource_context_uri(WebArg, Context),
     ResourceCollection = <<"ancillary-bookings">>,
-    <<ResourceContext/binary, Separator/binary, ResourceCollection/binary>>.
+    <<ResourceContextUri/binary, Separator/binary, ResourceCollection/binary>>.
 
 resource_instance_uri(WebArg, Path, FlightId, AncillaryBookingId) ->
     ResourceCollectionUri = resource_collection_uri(WebArg, Path, FlightId),
@@ -150,7 +148,7 @@ resource_instance_uri(WebArg, Path, FlightId, AncillaryBookingId) ->
     <<ResourceCollectionUri/binary, Separator/binary, AncillaryBookingId/binary>>.
 
 validation_spec() ->
-    [{<<"ancTxnId">>, optional, integer},
+    [{<<"txnId">>, optional, integer},
      {<<"operationType">>, optional, string},
      {<<"bookingTime">>, optional, string},
      {<<"quantity">>, optional, integer},
@@ -160,14 +158,14 @@ validation_spec() ->
 json_to_record(JsonInput) ->
     AllocatedAncillary = proplists:get_value(<<"allocatedAncillary">>,
                                              JsonInput),
-    Id = proplists:get_value(<<"Id">>, AllocatedAncillary),
+    AllocatedAncillaryId = proplists:get_value(<<"id">>, AllocatedAncillary),
     #ea_aics_ancillary_booking{
         customer_id = proplists:get_value(<<"customerId">>, JsonInput),
-        txn_id = proplists:get_value(<<"ancTxnId">>, JsonInput),
+        txn_id = proplists:get_value(<<"txnId">>, JsonInput),
         operation_type = proplists:get_value(<<"operationType">>, JsonInput),
         booking_time = proplists:get_value(<<"bookingTime">>, JsonInput),
         quantity = proplists:get_value(<<"quantity">>, JsonInput),
-        allocated_ancillary = Id}.
+        allocated_ancillary = AllocatedAncillaryId}.
 
 %%=============================================================================
 %%  Tests
@@ -181,10 +179,17 @@ module_test_() ->
 
     {foreach,
      fun()  ->
-        ok = meck:new(ea_aics_store_ancillary_bookings, [non_strict])
+        ok = meck:new(ea_aics_store_ancillary_bookings, [non_strict]),
+        ok = meck:new(ea_aics_rest_utils, [passthrough]),
+        ok = meck:expect(ea_aics_rest_utils, resource_context_uri, 1,
+            <<"http://localhost:8000">>),
+        ok = meck:expect(ea_aics_rest_utils, resource_context_uri, 2,
+            <<"http://localhost:8000">>)
      end,
      fun(_) ->
+        ?assert(meck:validate(ea_aics_rest_utils)),
         ?assert(meck:validate(ea_aics_store_ancillary_bookings)),
+        ok = meck:unload(ea_aics_rest_utils),
         ok = meck:unload(ea_aics_store_ancillary_bookings)
      end,
      [

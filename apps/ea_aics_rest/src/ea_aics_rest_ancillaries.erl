@@ -146,12 +146,11 @@ json_view_ancillaries(WebArg, Path, Ancillaries) when is_list(Ancillaries) ->
 %%  Internal Functions
 %%=============================================================================
 
-resource_collection_uri(_WebArg, _Path) ->
-    % TODO ResourceContext should be managed by web configuration
-    ResourceContext = <<"http://localhost:8000">>,
+resource_collection_uri(WebArg, _Path) ->
+    ResourceContextUri = ea_aics_rest_utils:resource_context_uri(WebArg),
     Separator = <<"/">>,
     ResourceCollection = <<"ancillaries">>,
-    <<ResourceContext/binary, Separator/binary, ResourceCollection/binary>>.
+    <<ResourceContextUri/binary, Separator/binary, ResourceCollection/binary>>.
 
 resource_instance_uri(WebArg, Path, AncillaryId) ->
     ResourceCollectionUri = resource_collection_uri(WebArg, Path),
@@ -215,10 +214,15 @@ module_test_() ->
 
     {foreach,
      fun()  ->
-        ok = meck:new(ea_aics_store_ancillaries, [non_strict])
+        ok = meck:new(ea_aics_store_ancillaries, [non_strict]),
+        ok = meck:new(ea_aics_rest_utils, [passthrough]),
+        ok = meck:expect(ea_aics_rest_utils, resource_context_uri, 1,
+            <<"http://localhost:8000">>)
      end,
      fun(_) ->
+        ?assert(meck:validate(ea_aics_rest_utils)),
         ?assert(meck:validate(ea_aics_store_ancillaries)),
+        ok = meck:unload(ea_aics_rest_utils),
         ok = meck:unload(ea_aics_store_ancillaries)
      end,
      [

@@ -15,7 +15,9 @@
 -export([json_encode/1,
          json_decode/1,
          parse_uri_id/1,
-         record_to_json_value/1]).
+         record_to_json_value/1,
+         resource_context_uri/1,
+         resource_context_uri/2]).
 
 -export_type([]).
 
@@ -48,6 +50,21 @@ record_to_json_value({datetime, Datetime}) ->
     iso8601:format(Datetime);
 record_to_json_value(Value) ->
     Value.
+
+-spec resource_context_uri(#arg{}) -> binary().
+
+resource_context_uri(WebArg) ->
+    resource_context_uri(WebArg, <<"">>).
+
+-spec resource_context_uri(#arg{}, binary()) -> binary().
+
+resource_context_uri(WebArg, Context) ->
+    WebRedirSelf = yaws_api:redirect_self(WebArg),
+    Scheme = list_to_binary(WebRedirSelf#redir_self.scheme_str),
+    Host = list_to_binary(WebRedirSelf#redir_self.host),
+    Port = list_to_binary(WebRedirSelf#redir_self.port_str),
+    Separator = <<"/">>,
+    <<Scheme/binary, Host/binary, Port/binary, Separator/binary, Context/binary>>.
 
 %% ===================================================================
 %%  Internal Functions
