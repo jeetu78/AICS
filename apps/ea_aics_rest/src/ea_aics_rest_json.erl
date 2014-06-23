@@ -18,22 +18,13 @@
 %%% Types
 %%%----------------------------------------------------------------------------
 
-%-type resource_type() :: 'ancillary' | 'ancillary_booking' |
-%    'allocated_ancillary'.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% TODO: Right now the validator returns the Json as it is without validating
-%%% in the case of nested JSONs. We need to implement the recursive validation
-%%% of nested JSONs.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
--type resource_type() :: 'json'.
-
 -type validation_spec() :: nonempty_list({binary(), mandatory | optional,
                                           field_type()}).
 
 -type field_type() :: 'integer' | 'boolean' | 'binary' |
-    'natural' | 'string' | 'float' | resource_type().
+    'natural' | 'string' | 'float' | json_type().
+
+-type json_type() :: {'json', validation_spec()}.
 
 -type external_parameters() :: nonempty_list({binary(), any()}).
 
@@ -188,8 +179,9 @@ type_validation(Name, Value, string) when is_binary(Value) ->
         false ->
             throw({badtype_parameter, Name})
     end;
-type_validation(_Name, Value, json) ->
-    Value;
+%Recursive validation for nested JSONs.
+type_validation(_Name, Value, {json, Spec}) ->
+    validate(Spec, Value);
 type_validation(Name, _, _) ->
     throw({badtype_parameter, Name}).
 
@@ -242,6 +234,38 @@ validator_valid_input_test_() ->
               {<<"value4">>, 4},
               {<<"value5">>, 4.9}],
     ?_assertMatch(Fields, validate(Spec, Fields)).
+
+
+validator_valid_input_nested_test_() ->
+    Spec = [{<<"value1">>, mandatory, binary},
+            {<<"value2">>, optional, string},
+            {<<"value3">>, mandatory,
+             {json, [{<<"value2-1">>, mandatory, binary},
+                     {<<"value2-2">>, mandatory, boolean}]}
+            }],
+    Fields = [{<<"value1">>, <<"binary">>},
+              {<<"value3">>,
+               [{<<"value2-1">>, <<"binary">>},
+                {<<"value2-2">>, false}]
+              }],
+    ?_assertMatch(Fields, validate(Spec, Fields)).
+
+validator_not_valid_input_nested_test_() ->
+    Spec = [{<<"value1">>, mandatory, binary},
+            {<<"value2">>, mandatory,
+             {json, [{<<"value2-1">>, mandatory, float},
+                     {<<"value2-2">>, mandatory,
+                      {json, [{<<"value3-1">>, mandatory, string},
+                             {<<"value3-2">>, optional, integer}]}
+                     }]}
+            }],
+    Fields = [{<<"value1">>, <<"binary">>},
+              {<<"value2">>,
+               [{<<"value2-1">>, 3.6},
+                {<<"value2-2">>, [{<<"value3-1">>, "string"},
+                                  {<<"value3-2">>, 5.4}]}]
+              }],
+    ?_assertThrow({badtype_parameter, <<"value3-2">>}, validate(Spec, Fields)).
 
 validator_edge_case_1_test_() ->
     Spec = [{<<"value1">>, optional, binary},
