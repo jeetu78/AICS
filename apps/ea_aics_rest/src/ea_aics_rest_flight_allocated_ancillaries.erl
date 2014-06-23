@@ -108,6 +108,14 @@ json_view_allocated_ancillary(WebArg, Path, FlightId, #ea_aics_allocated_ancilla
         ea_aics_rest_ancillaries:json_view_ancillary(WebArg, Path, AllocatedAncillary_Ancillary),
     [{<<"href">>, ResourceUri},
      {<<"id">>, AllocatedAncillaryId},
+     {<<"inventoryId">>,
+        ea_aics_rest_utils:record_to_json_value(AllocatedAncillary#ea_aics_allocated_ancillary.inventory_id)},
+     {<<"allocatedQuantity">>,
+        ea_aics_rest_utils:record_to_json_value(AllocatedAncillary#ea_aics_allocated_ancillary.allocated_quantity)},
+     {<<"availableQuantity">>,
+        ea_aics_rest_utils:record_to_json_value(AllocatedAncillary#ea_aics_allocated_ancillary.available_quantity)},
+     {<<"modifiedTime">>,
+        ea_aics_rest_utils:record_to_json_value(AllocatedAncillary#ea_aics_allocated_ancillary.modified_time)},
      {<<"ancillary">>, AllocatedAncillary_AncillaryJsonView}].
 
 %%------------------------------------------------------------------------------
