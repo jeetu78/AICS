@@ -36,4 +36,4 @@
 -spec generate_uuid() -> binary().
 
 generate_uuid() ->
-    uuid:get_v4().
+    uuid:uuid_to_string(uuid:get_v4(), binary_nodash).
