@@ -10,14 +10,22 @@ To be up and running you need:
 
 Install Vagrant plugins:
 
-```
+```Shell
 > vagrant plugin install vagrant-aws
 > vagrant plugin install vagrant-hostmanager
 > vagrant plugin install vagrant-auto_network
 ```
 
+Install Ansible Roles
+
+```Shell
+>ansible-galaxy install Mayeu.RabbitMQ
+```
+
+And make sure the MemSQL debian package is in `provision/memsql/files/`
+
 Bootstrap the env:
 
-```
+```Shell
 > vagrant up
 ```
