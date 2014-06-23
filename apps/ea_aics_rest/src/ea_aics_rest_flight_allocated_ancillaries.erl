@@ -12,6 +12,7 @@
 -endif.
 
 -export([process/3,
+         validation_spec/0,
          json_view_allocated_ancillary/4,
          json_view_allocated_ancillaries/4]).
 
@@ -151,7 +152,12 @@ validation_spec() ->
     [{<<"inventoryid">>, optional, integer},
      {<<"allocatedQuantity">>, optional, integer},
      {<<"availableQuantity">>, optional, integer},
-     {<<"ancillary">>, mandatory, json}].
+     %% TODO: At the moment we have not implemented the possibilty of
+     %% dinamically create an ancillary on this request. Therefore the
+     %% ancillary object now can only be a simple "id". It must be already
+     %% created beforehand.
+     {<<"ancillary">>, mandatory,
+      {json, [{<<"id">>, mandatory, binary}]}}].
 
 json_to_record(JsonInput, FlightId) ->
     Ancillary = proplists:get_value(<<"ancillary">>, JsonInput),

@@ -12,6 +12,7 @@
 -endif.
 
 -export([process/3,
+         validation_spec/0,
          json_view_ancillary/3,
          json_view_ancillaries/3]).
 

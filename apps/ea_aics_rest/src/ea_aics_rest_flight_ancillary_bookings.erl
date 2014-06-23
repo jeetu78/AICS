@@ -11,7 +11,8 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([process/3]).
+-export([process/3,
+         validation_spec/0]).
 
 -export_type([]).
 
@@ -155,7 +156,12 @@ validation_spec() ->
      {<<"bookingTime">>, optional, string},
      {<<"quantity">>, optional, integer},
      {<<"customerId">>, optional, string},
-     {<<"allocatedAncillary">>, mandatory, json}].
+     %% TODO: At the moment we have not implemented the possibilty of
+     %% dinamically create an allocated ancillary object on this request.
+     %% Therefore the allocated ancillary object now can only be a simple "id".
+     %% It must be already created beforehand.
+     {<<"allocatedAncillary">>, mandatory,
+      {json, [{<<"id">>, mandatory, binary}]}}].
 
 json_to_record(JsonInput) ->
     AllocatedAncillary = proplists:get_value(<<"allocatedAncillary">>,
