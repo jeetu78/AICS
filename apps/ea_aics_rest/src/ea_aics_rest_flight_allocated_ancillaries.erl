@@ -134,14 +134,12 @@ json_view_allocated_ancillaries(WebArg, Path, FlightId, AllocatedAncillaries) wh
 %%  Internal Functions
 %%=============================================================================
 
-resource_collection_uri(_WebArg, _Path, FlightId) ->
-    % TODO ResourceContext should be managed by web configuration
+resource_collection_uri(WebArg, _Path, FlightId) ->
     Separator = <<"/">>,
-    ResourceContext = <<(<<"http://localhost:8000/flights">>)/binary,
-                         Separator/binary,
-                         FlightId/binary>>,
+    Context = <<(<<"flights">>)/binary, Separator/binary, FlightId/binary>>,
+    ResourceContextUri = ea_aics_rest_utils:resource_context_uri(WebArg, Context),
     ResourceCollection = <<"allocated-ancillaries">>,
-    <<ResourceContext/binary, Separator/binary, ResourceCollection/binary>>.
+    <<ResourceContextUri/binary, Separator/binary, ResourceCollection/binary>>.
 
 resource_instance_uri(WebArg, Path, FlightId, AllocatedAncillaryId) ->
     ResourceCollectionUri = resource_collection_uri(WebArg, Path, FlightId),
@@ -149,7 +147,7 @@ resource_instance_uri(WebArg, Path, FlightId, AllocatedAncillaryId) ->
     <<ResourceCollectionUri/binary, Separator/binary, AllocatedAncillaryId/binary>>.
 
 validation_spec() ->
-    [{<<"inventoryid">>, optional, integer},
+    [{<<"inventoryId">>, optional, integer},
      {<<"allocatedQuantity">>, optional, integer},
      {<<"availableQuantity">>, optional, integer},
      %% TODO: At the moment we have not implemented the possibilty of
@@ -163,7 +161,7 @@ json_to_record(JsonInput, FlightId) ->
     Ancillary = proplists:get_value(<<"ancillary">>, JsonInput),
     AncillaryId = proplists:get_value(<<"id">>, Ancillary),
     #ea_aics_allocated_ancillary{
-        inventory_id = proplists:get_value(<<"masterCode">>, JsonInput),
+        inventory_id = proplists:get_value(<<"inventoryId">>, JsonInput),
         allocated_quantity = proplists:get_value(<<"allocatedQuantity">>,
                                                  JsonInput),
         available_quantity = proplists:get_value(<<"availableQuantity">>,
@@ -183,10 +181,17 @@ module_test_() ->
 
     {foreach,
      fun()  ->
-        ok = meck:new(ea_aics_store_allocated_ancillaries, [non_strict])
+        ok = meck:new(ea_aics_store_allocated_ancillaries, [non_strict]),
+        ok = meck:new(ea_aics_rest_utils, [passthrough]),
+        ok = meck:expect(ea_aics_rest_utils, resource_context_uri, 1,
+            <<"http://localhost:8000">>),
+        ok = meck:expect(ea_aics_rest_utils, resource_context_uri, 2,
+            <<"http://localhost:8000">>)
      end,
      fun(_) ->
+        ?assert(meck:validate(ea_aics_rest_utils)),
         ?assert(meck:validate(ea_aics_store_allocated_ancillaries)),
+        ok = meck:unload(ea_aics_rest_utils),
         ok = meck:unload(ea_aics_store_allocated_ancillaries)
      end,
      [
