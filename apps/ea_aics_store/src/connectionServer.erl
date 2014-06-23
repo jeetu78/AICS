@@ -5,7 +5,7 @@
 -module(connectionServer).
 -include_lib("ea_aics_store.hrl").
 -behaviour(gen_server).
-%%-behaviour(application).
+
 
 %% ====================================================================
 %% API functions
@@ -18,8 +18,6 @@
          terminate/2, 
          code_change/3]).
 
-%% application callbacks
-%%-export([start/2, stop/1]).
 
 -export([start_server/1,execute/1]).
 %% ====================================================================
@@ -42,11 +40,8 @@ start_server(DBConfig) ->
 	io:format("Starting Server\n"),
 	gen_server:start_link({local, ?MODULE},?MODULE, [DBConfig], []).
 
-
-
 execute(Query) ->
 	 gen_server:call(?MODULE,Query).
-
 
 %%====================================================================
 %% gen_server callbacks
@@ -73,14 +68,17 @@ handle_call(Query, From, State) ->
 		Query /= [] ->
 			case mysql:fetch(connPool,Query) of
 				{data, QueryResult} ->
-					{reply,QueryResult,State};
+					#mysql_result{rows = QueryResultRows}=QueryResult,
+					{reply,{data,QueryResultRows},State};
 				{updated, QueryResult} ->
-					{reply,QueryResult,State};
-				_->
-				{reply,error,db_error}
+					#mysql_result{affectedrows=Rows}=QueryResult,
+					{reply,{no_of_rows,Rows},State};
+				{error,QueryResult}->
+					#mysql_result{error=Error}=QueryResult,
+					{reply,{error,Error},State}
 			end;
 		true ->
-			{reply,error,invalid_query}
+			{reply,{error,"Invalid Query"},State}
 	end.
 
 
@@ -91,11 +89,10 @@ handle_call(Query, From, State) ->
 % {stop,Reason,NewState}
 %% normal termination clause
 handle_cast(shutdown, State) ->
-    io:format("Generic cast handler: *shutdown* while in '~p'~n",[State]),
     {stop, normal, State};
 %% generic async handler
 handle_cast(Message, State) ->
-    io:format("Generic cast handler: '~p' while in '~p'~n",[Message, State]),
+	io:format("~p", [Message]),
     {noreply, State}.
 
 %% Informative calls
@@ -104,7 +101,6 @@ handle_cast(Message, State) ->
 % {noreply,NewState,hibernate}
 % {stop,Reason,NewState}
 handle_info(_Message, _Server) -> 
-    io:format("Generic info handler: '~p' '~p'~n",[_Message, _Server]),
     {noreply, _Server}.
 
 %% Server termination
@@ -114,5 +110,3 @@ terminate(_Reason, _Server) ->
 
 %% Code change
 code_change(_OldVersion, _Server, _Extra) -> {ok, _Server}. 
-
-%%function for testing
