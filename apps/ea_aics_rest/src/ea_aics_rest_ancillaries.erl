@@ -39,38 +39,36 @@ process('POST', WebArg, ["ancillaries"] = Path) ->
     HeaderLocation = {"Location", ResourceInstanceUri},
     HttpHeaders = {allheaders, [{header, HeaderLocation}]},
     [HttpStatus, HttpHeaders];
-process('GET', WebArg, ["ancillaries"] = Path) ->
-	io:format("~p~p",[WebArg,Path]),
-	AncillariesJsonView=case lists:keysearch("flight-uuid", 1, yaws_api:parse_query(WebArg)) of
-							{value, {"flight-uuid", Flight_UUID}} ->
-								case Flight_UUID of
-									undefined->
-										ea_aics_service:createInputForJsonEncode(error,"Empty flight-uuid value");
-									Flight_UUID->
-										ea_aics_service:getAncillariesForFlight(Flight_UUID)
-								end;
-							false ->
-								ea_aics_service:createInputForJsonEncode(error,"No flight-uuid parameter")
-						end,
-	HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
-	HttpContentBody = ea_aics_rest_utils:json_encode(AncillariesJsonView),
-	HttpContent = {content, HttpContentType, HttpContentBody},
-	%%HttpContent = {content, "text/HTML", HttpContentBody},
-	HttpStatus = {status, ?HTTP_200},
-	[HttpContent, HttpStatus];
 
+process('GET', WebArg, ["ancillaries"] = Path) ->
+    io:format("~p~p",[WebArg,Path]),
+        AncillariesJsonView=case lists:keysearch("flight-uuid", 1, yaws_api:parse_query(WebArg)) of
+                                                        {value, {"flight-uuid", Flight_UUID}} ->
+                                                                case Flight_UUID of
+                                                                        undefined->
+                                                                                ea_aics_service:createInputForJsonEncode(error,"Empty flight-uuid value");
+                                                                        Flight_UUID->
+                                                                                ea_aics_service:getAncillariesForFlight(Flight_UUID)
+                                                                end;
+                                                        false ->
+                                                                ea_aics_service:createInputForJsonEncode(error,"No flight-uuid parameter")
+                                                end,
+        HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
+        HttpContentBody = ea_aics_rest_utils:json_encode(AncillariesJsonView),
+        HttpContent = {content, HttpContentType, HttpContentBody},
+        %%HttpContent = {content, "text/HTML", HttpContentBody},
+        HttpStatus = {status, ?HTTP_200},
+        [HttpContent, HttpStatus];
 
 process('POST', WebArg, ["book-ancillaries"] = Path) ->
     io:format("~p~p",[WebArg,Path]),
-    %%{_,_,_,_,_,Parameter,_,_,_,_,_,_,_,_,_,_,_,_,_}=WebArg,
-    %%InputJson=lists:subtract(binary_to_list(Parameter),"book-ancillaries-json="),
-    Json=list_to_binary("{ \"data\":[ { \"anc_inv_uuid\": \"009171d0-561e-4d72-8297-0ec75da4c274\", \"customer_uuid\": \"1234\", \"quantity\" : 1 }, { \"anc_inv_uuid\": \"fe992fc5-5862-4f69-bf26-f13648dfb128\", \"customer_uuid\": \"1234\", \"quantity\" : 1 }, { \"anc_inv_uuid\": \"f2fa31ba-0e87-40b5-a4c1-06d50651e571\", \"customer_uuid\": \"xyz\", \"quantity\" : 1 } ] }"),
-    JsonStructure=ea_aics_rest_utils:json_decode(Json),
+    #arg{clidata=Client_Data}=WebArg,
+    JsonStructure=ea_aics_rest_utils:json_decode(Client_Data),
     TxJsonView= ea_aics_service:bookAncillaries(JsonStructure),
     HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
     HttpContentBody = ea_aics_rest_utils:json_encode(TxJsonView),
     HttpContent = {content, HttpContentType,HttpContentBody},
-    %%HttpContent = {content, "text/HTML", "this is body"},HttpContentBody
+    %%HttpContent = {content, "text/HTML", HttpContentBody},
     HttpStatus = {status, ?HTTP_200},
     [HttpContent, HttpStatus];
 
