@@ -44,10 +44,6 @@ dispatch(Method, WebArg, ["ancillaries" | _RestPath] = Path) ->
     ea_aics_rest_ancillaries:process(Method, WebArg, Path);
 dispatch(Method, WebArg, ["book-ancillaries" | _RestPath] = Path) ->
     ea_aics_rest_ancillaries:process(Method, WebArg, Path);
-dispatch(Method, WebArg, ["flights", _Uri_FlightId, "allocated-ancillaries" | _RestPath] = Path) ->
-    ea_aics_rest_flight_allocated_ancillaries:process(Method, WebArg, Path);
-dispatch(Method, WebArg, ["flights", _Uri_FlightId, "ancillary-bookings" | _RestPath] = Path) ->
-    ea_aics_rest_flight_ancillary_bookings:process(Method, WebArg, Path);
 dispatch(_Method, _WebArg, _Path) ->
     HttpStatus = {status, ?HTTP_404},
     [HttpStatus].
@@ -55,7 +51,4 @@ dispatch(_Method, _WebArg, _Path) ->
 post_process(Result) ->
     Result.
 
-%% ===================================================================
-%%  Tests
-%% ===================================================================
-         
+
