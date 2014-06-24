@@ -3,9 +3,8 @@
 
 
 -module(ea_aics_service).
--include_lib("mysql/include/mysql.hrl").
 -include_lib("ea_aics_store.hrl").
--export([getAncillariesForFlight/1,getAncillaryAvailableQuantity/1,bookAncillaries/1,createInputForJsonEncode/2]).
+-export([getAncillariesForFlight/1,bookAncillaries/1,createInputForJsonEncode/2]).
 
 %% ====================================================================
 %% API functions
@@ -20,7 +19,7 @@
 getAncillariesForFlight(FlightUUID)->
 	if 
 		FlightUUID /= [] ->
-			case do_read({'ANCILLARY_MASTER',[],[{'FLIGHT_UUID',FlightUUID}]}) of
+			case do_read({read_ancillaries,{flight_uuid,FlightUUID}}) of
 				{ok,Records} ->
 					createInputForJsonEncode(Records);
 				{error,ErrorMsg}->
@@ -55,51 +54,74 @@ bookAncillaries(JsonStructure)->
 bookMultipleAncillaries(BookAncillariesInput)->
 	if 
 		BookAncillariesInput /=[] ->
-			lists:map(fun(#ancillary_booking_input{ancillary_inventory_uuid=AncillaryInventoryUUId,customer_uuid=CustomerUUId,quantity=Quantity}) ->
-							  bookAncillary(AncillaryInventoryUUId,CustomerUUId,Quantity)
-					  end,
-					  BookAncillariesInput);
+			Update_Output=lists:map(fun(#ancillary_booking_input{ancillary_inventory_uuid=AncillaryInventoryUUId,customer_uuid=CustomerUUId,quantity=Quantity})->
+											do_update({update_ancillary_inventory,[{quantity,Quantity},{anc_inventory_uuid,AncillaryInventoryUUId},{customer_uuid,CustomerUUId}]})
+									end,BookAncillariesInput),
+			Failed_Updates_List=lists:filter(fun(Element)->
+													 case Element of
+														 {ok,{1,_}}->
+															 false;
+														 {ok,{0,_}}->
+															 true;
+														 {error,_}->
+															 true
+													 end
+											 end,
+											 Update_Output),
+			if
+				length(Failed_Updates_List) == 0 ->
+					UUID=binary_to_list(ea_aics_store:generate_uuid()),
+					Bookings=lists:map(fun(#ancillary_booking_input{ancillary_inventory_uuid=AncillaryInventoryUUId,customer_uuid=CustomerUUId,quantity=Quantity}) ->
+											   case do_insert({insert_ancillary_tx,[{uuid,UUID},{anc_inventory_uuid,AncillaryInventoryUUId},{customer_uuid,CustomerUUId},{quantity,Quantity}]}) of
+												   {ok,{UUID,AncillaryInventoryUUId,CustomerUUId,Quantity}}->
+													   #ancillary_transaction{status="ancillary booked",availability="available",quantity=Quantity,ancillary_inventory_uuid=AncillaryInventoryUUId,customer_uuid=CustomerUUId,error_msg="-"};
+												   {error,{Error,{AncillaryInventoryUUId,CustomerUUId,Quantity}}}->
+													   #ancillary_transaction{status="ancillary not booked",availability="available",quantity=Quantity,ancillary_inventory_uuid=AncillaryInventoryUUId,customer_uuid=CustomerUUId,error_msg=Error}
+											   end
+									   end,
+									   BookAncillariesInput),
+					case lists:keymember("ancillary booked", 2, Bookings) of
+						true->
+							{UUID,"successful",Bookings};
+						false->
+							{"-","Failed",Bookings}
+					end;
+				true->
+					rollback(ancillary_inventory,{"-","Failed",Update_Output})
+			end;
 		true ->
-			{error,invalid_input_for_booking_ancillaries}
+			[#ancillary_transaction{error_msg="Invalid input to bookMultipleAncillaries",quantity=0}]
 	end.
 
+
+rollback(ancillary_inventory,{UUID,Tx_Status,Update_Output})->
+	{UUID,Tx_Status,[case Entry of 
+					  {ok,{1,{AncillaryInventoryUUId,CustomerUUId,Quantity}}}->
+						  case do_update({rollback_ancillary_inventory,[{available_quantity,Quantity},{uuid,AncillaryInventoryUUId}]}) of
+							  {ok,_}->
+								  #ancillary_transaction{status="ancillary not booked",availability="available",quantity=Quantity,ancillary_inventory_uuid=AncillaryInventoryUUId,customer_uuid=CustomerUUId,error_msg="-"};
+							  {error,Error}->
+								  #ancillary_transaction{status="ancillary not booked",availability="available",quantity=Quantity,ancillary_inventory_uuid=AncillaryInventoryUUId,customer_uuid=CustomerUUId,error_msg=Error}
+						  end;
+					  {ok,{0,{AncillaryInventoryUUId,CustomerUUId,Quantity}}}->
+						  #ancillary_transaction{status="ancillary not booked",availability="unavailable",quantity=Quantity,ancillary_inventory_uuid=AncillaryInventoryUUId,customer_uuid=CustomerUUId,error_msg="-"};
+					  {error,{Error,{AncillaryInventoryUUId,CustomerUUId,Quantity}}}->
+						  #ancillary_transaction{status="ancillary not booked",availability="available",quantity=Quantity,ancillary_inventory_uuid=AncillaryInventoryUUId,customer_uuid=CustomerUUId,error_msg=Error}
+				  end
+				  ||Entry<-Update_Output]}.
 %%------------------------------------------------------------------------------
 %% @doc Books an ancillary if available against a Customer
 %%
 %% @end
 %%------------------------------------------------------------------------------
 
-bookAncillary(AncillaryInventoryUUId,CustomerUUId,Quantity) ->
-	if 
-		((AncillaryInventoryUUId /= []) and (CustomerUUId /= []) and (Quantity >= 0)) ->
-			case getAncillaryAvailableQuantity(AncillaryInventoryUUId) of
-				{ok,[[AvailabaleQuantity]]}->
-					if
-						AvailabaleQuantity>=Quantity ->
-							UUID=ea_aics_store:generate_uuid(),
-							
-							case do_update({'ANCILLARY_INVENTORY',[{'AVAILABLE_QUANTITY',Quantity}],[{'UUID',AncillaryInventoryUUId}]}) of
-								{ok,NumberOfRows}->
-									if 
-										NumberOfRows>0 ->
-											do_insert({'ANCILLARY_TX',[{'UUID',UUID},{'ANC_INVENTORY_UUID',AncillaryInventoryUUId},{'CUSTOMER_UUID',CustomerUUId},{'QUANTITY',Quantity}]});
-										true ->
-											{error,"Couldn't update Ancillary Inventory"}
-									end;
-								{error,ErrorMsg}->
-									{error,ErrorMsg}
-							end;
-						
-						
-						true->
-							{unavailable_quantity,{AvailabaleQuantity,AncillaryInventoryUUId,CustomerUUId}}
-					end;
-				{error,ErrorMsg}->
-					{error,ErrorMsg}
-			end;
-		true->
-			{error,"bookAncillary one or more invalid argument"}
-	end.
+%% bookAncillary(UUID,AncillaryInventoryUUId,CustomerUUId,Quantity) ->
+%% 	if 
+%% 		((AncillaryInventoryUUId /= []) and (CustomerUUId /= []) and (Quantity >= 0)) ->
+%% 			do_insert({'ANCILLARY_TX',[{'UUID',UUID},{'ANC_INVENTORY_UUID',AncillaryInventoryUUId},{'CUSTOMER_UUID',CustomerUUId},{'QUANTITY',Quantity}]});
+%% 		true->
+%% 			{error,"bookAncillary one or more invalid argument"}
+%% 	end.
 
 %%------------------------------------------------------------------------------
 %% @doc Reads the available quantity of an ancillary.
@@ -107,13 +129,13 @@ bookAncillary(AncillaryInventoryUUId,CustomerUUId,Quantity) ->
 %% @end
 %%------------------------------------------------------------------------------
 
-getAncillaryAvailableQuantity(AncillaryInventoryUUID) ->
-	if 
-		AncillaryInventoryUUID /= [] ->
-			do_read({'ANCILLARY_INVENTORY',['AVAILABLE_QUANTITY'],[{'UUID',AncillaryInventoryUUID}]});
-		true->
-			{error,"getAncillaryAvailableQuantity invalid argument"}
-	end.
+%% getAncillaryAvailableQuantity(AncillaryInventoryUUID) ->
+%% 	if 
+%% 		AncillaryInventoryUUID /= [] ->
+%% 			do_read({'ANCILLARY_INVENTORY',['AVAILABLE_QUANTITY'],[{'UUID',AncillaryInventoryUUID}]});
+%% 		true->
+%% 			{error,"getAncillaryAvailableQuantity invalid argument"}
+%% 	end.
 
 %% ====================================================================
 %% Database functions
@@ -125,23 +147,25 @@ getAncillaryAvailableQuantity(AncillaryInventoryUUID) ->
 %% @end
 %%------------------------------------------------------------------------------
 
-do_update({Table,UpdateParameters,ClauseParameters})->
-	case {Table,UpdateParameters,ClauseParameters} of
-		{'ANCILLARY_INVENTORY',[{'AVAILABLE_QUANTITY',Quantity}],[{'UUID',AncillaryInventoryUUId}]} ->
-			Query="UPDATE ANCILLARY_INVENTORY SET AVAILABLE_QUANTITY=AVAILABLE_QUANTITY-" ++ integer_to_list(Quantity) ++" WHERE UUID='"++ AncillaryInventoryUUId ++ "'",
+do_update(Update_Input)->
+	case Update_Input of
+		{update_ancillary_inventory,[{quantity,Quantity},{anc_inventory_uuid,AncillaryInventoryUUId},{customer_uuid,CustomerUUId}]} ->
+			Quantity_List=integer_to_list(Quantity),
+			Query="UPDATE ANCILLARY_INVENTORY SET AVAILABLE_QUANTITY=AVAILABLE_QUANTITY-" ++ Quantity_List ++" WHERE UUID='"++ AncillaryInventoryUUId ++ "' AND (AVAILABLE_QUANTITY-"++ Quantity_List ++")>=0",
 			case connectionServer:execute(Query) of
 				{no_of_rows,NumberOfRows}->
-					if
-						NumberOfRows>0 ->
-							{ok,NumberOfRows};
-						true->
-							{error,"Ancillary Inventory Update Failed"}
-					end;
+					{ok,{NumberOfRows,{AncillaryInventoryUUId,CustomerUUId,Quantity}}};
+				{error,Error}->
+					{error,{Error,{AncillaryInventoryUUId,CustomerUUId,Quantity}}}
+			end;
+		{rollback_ancillary_inventory,[{available_quantity,Quantity},{uuid,AncillaryInventoryUUId}]} ->
+			Query="UPDATE ANCILLARY_INVENTORY SET AVAILABLE_QUANTITY=AVAILABLE_QUANTITY+" ++ integer_to_list(Quantity) ++" WHERE UUID='"++ AncillaryInventoryUUId ++ "'",
+			case connectionServer:execute(Query) of
+				{no_of_rows,Number_of_Rows}->
+					{ok,Number_of_Rows};
 				{error,Error}->
 					{error,Error}
-			end;
-		_->
-			{error,"do-update case clause mismatch"}
+			end
 	end.
 
 %%------------------------------------------------------------------------------
@@ -150,23 +174,21 @@ do_update({Table,UpdateParameters,ClauseParameters})->
 %% @end
 %%------------------------------------------------------------------------------
 
-do_insert({Table,Parameters})->
-	case {Table,Parameters} of
-		{'ANCILLARY_TX',[{'UUID',UUID},{'ANC_INVENTORY_UUID',AncillaryInventoryUUId},{'CUSTOMER_UUID',CustomerUUId},{'QUANTITY',Quantity}]} ->
-			Query="INSERT INTO ANCILLARY_TX (UUID,ANC_INVENTORY_UUID,CUSTOMER_UUID,QUANTITY) VALUES ('"++ binary_to_list(UUID) ++"','"++ AncillaryInventoryUUId ++"','"++ CustomerUUId ++"',"++ integer_to_list(Quantity) ++")",
+do_insert(Insert_Input)->
+	case Insert_Input of
+		{insert_ancillary_tx,[{uuid,UUID},{anc_inventory_uuid,AncillaryInventoryUUId},{customer_uuid,CustomerUUId},{quantity,Quantity}]} ->
+			Query="INSERT INTO ANCILLARY_TX (UUID,ANC_INVENTORY_UUID,CUSTOMER_UUID,QUANTITY) VALUES ('"++ UUID ++"','"++ AncillaryInventoryUUId ++"','"++ CustomerUUId ++"',"++ integer_to_list(Quantity) ++")",
 			case connectionServer:execute(Query) of
 				{no_of_rows,NumberOfRows}->
 					if
 						NumberOfRows>0->
-							{ok,{UUID,AncillaryInventoryUUId,CustomerUUId}};
+							{ok,{UUID,AncillaryInventoryUUId,CustomerUUId,Quantity}};
 						true->
-							{error,{"create anc transaction failed",{AncillaryInventoryUUId,CustomerUUId}}}
+							{error,{"create anc transaction failed",{AncillaryInventoryUUId,CustomerUUId,Quantity}}}
 					end;
 				{error,Error}->
-					{error,{Error,{AncillaryInventoryUUId,CustomerUUId}}}
-			end;
-		_->
-			{error,"do-insert case clause mismatch"}
+					{error,{Error,{AncillaryInventoryUUId,CustomerUUId,Quantity}}}
+			end
 	end.
 
 %%------------------------------------------------------------------------------
@@ -175,26 +197,16 @@ do_insert({Table,Parameters})->
 %% @end
 %%------------------------------------------------------------------------------
 
-do_read({Table,Fields,Parameters}) ->
-	case {Table,Fields,Parameters} of
-		{'ANCILLARY_MASTER',[],[{'FLIGHT_UUID',FlightUUID}]} ->
+do_read(Read_Input) ->
+	case Read_Input of
+		{read_ancillaries,{flight_uuid,FlightUUID}} ->
 			Query="SELECT AI.UUID,AI.FLIGHT_UUID,AI.AVAILABLE_QUANTITY,AM.UUID,AM.ANC_MASTER_CODE,AM.GROUP_CODE,AM.SUB_GROUP,AM.COMMERCIAL_NAME,AM.DESCRIPTION1,AM.DESCRIPTION2,AM.WEB_DESCRIPTION,AM.IMAGE_THUBNAIL_URL,AM.IMAGE_LARGE_URL,AM.IMAGE_TOOL_TIP,AM.CURRENCY,AM.PRICE,AM.TAX,AM.IS_DISCOUNT,AM.DISCOUNT_DESC,AM.DISCOUNT_PCNT FROM ANCILLARY_MASTER AM INNER JOIN (SELECT UUID,FLIGHT_UUID,AVAILABLE_QUANTITY,ANC_MASTER_UUID FROM ANCILLARY_INVENTORY WHERE FLIGHT_UUID='"++ FlightUUID ++"')	AI ON AM.UUID=AI.ANC_MASTER_UUID",
 			case connectionServer:execute(Query) of
 				{data,QueryResultRows}->
 					{ok, parse_rows_into_records(ancillary,QueryResultRows)};
 				{error,Error}->
 					{error,Error}
-			end;
-		{'ANCILLARY_INVENTORY',['AVAILABLE_QUANTITY'],[{'UUID',AncillaryInventoryUUID}]} ->
-			Query="SELECT AVAILABLE_QUANTITY FROM ANCILLARY_INVENTORY WHERE UUID='"++ AncillaryInventoryUUID ++"'",
-			case connectionServer:execute(Query) of
-				{data,QueryResultRows}->
-					{ok,QueryResultRows};
-				{error,Error}->
-					{error,Error}
-			end;
-		_->
-			{error,"do-read case clause mismatch"}
+			end
 	end.
 
 %% ====================================================================
@@ -284,17 +296,7 @@ create_book_ancillary_record(Element)->
 %%
 %% @end
 %%----------------------------------------------------------------------------------------------
-create_tx_json(TxOutput)->
-	[{<<"Ancillary Transactions">>,[
-									case TxEntry of
-										{ok,{UUID,AncillaryInventoryUUId,CustomerUUId}} ->
-											[{<<"booking_status">>,<<"complete">>},{<<"transaction_id">>,UUID},{<<"anc_inv_uuid">>,list_to_binary(AncillaryInventoryUUId)},{<<"customer_uuid">>,list_to_binary(CustomerUUId)}];
-										{unavailable_quantity,{AvailabaleQuantity,AncillaryInventoryUUId,CustomerUUId}} ->
-											[{<<"booking_status">>,<<"incomplete">>},{<<"available_quantity">>,AvailabaleQuantity},{<<"anc_inv_uuid">>,list_to_binary(AncillaryInventoryUUId)},{<<"customer_uuid">>,list_to_binary(CustomerUUId)}];
-										{error,{Error,{AncillaryInventoryUUId,CustomerUUId}}}->
-											[{<<"error">>,list_to_binary(Error)},{<<"anc_inv_uuid">>,list_to_binary(AncillaryInventoryUUId)},{<<"customer_uuid">>,list_to_binary(CustomerUUId)}];
-										{error,ErrorMsg} ->
-											[{<<"error">>,list_to_binary(ErrorMsg)}]
-									end
-									||TxEntry<-TxOutput]}].
+create_tx_json({UUID,Tx_Status,TxRecords})->
+	[{<<"transaction_id">>,list_to_binary(UUID)},{<<"transaction_status">>,list_to_binary(Tx_Status)},{<<"ancillary_bookings">>,[[{<<"status">>,list_to_binary(Status)},{<<"availability">>,list_to_binary(Availibility)},{<<"quantity">>,Quantity},{<<"ancillary_inventory_uuid">>,list_to_binary(AncillaryInventoryUUId)},{<<"customer_uuid">>,list_to_binary(CustomerUUId)},{<<"error_msg">>,list_to_binary(Error_Msg)}]
+																											  || #ancillary_transaction{status=Status,availability=Availibility,quantity=Quantity,ancillary_inventory_uuid=AncillaryInventoryUUId,customer_uuid=CustomerUUId,error_msg=Error_Msg}<-TxRecords]}].
 
