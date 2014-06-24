@@ -38,7 +38,7 @@ process('POST', WebArg, ["flights", Uri_FlightId, "allocated-ancillaries"] = Pat
     case ea_aics_rest_json:parse(validation_spec(), Json) of
         {invalid_json, Reason, JsonFields} ->
             lager:info("Invalid JSON allocated-ancillaries. Reason: ~p, Input: ~p",
-                       [Reason,JsonFields]),
+                       [Reason, JsonFields]),
             [{status, ?HTTP_400}];
         Values ->
             FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
