@@ -1,3 +1,4 @@
 -record(dbConfig, {user,password,host,port,database}).
 -record(ancillary_booking_input, {ancillary_inventory_uuid,customer_uuid,quantity}).
 -record(ancillary_info, {anc_inv_uuid,flight_uuid,available_quantity,anc_uuid,code,group,subGroup,commercialName,description1,description2,webDescription,imageThumbnailURL,imageLargeURL,imageToolTip,currency,basePrice,tax,isDiscount,discDescription,discPercentage}).
+-record(ancillary_transaction,{status,availability,ancillary_inventory_uuid,customer_uuid,quantity,error_msg}).
