@@ -124,6 +124,8 @@ create_allocated_ancillary(Config) ->
     TestData = ?config(test_data, Config),
     AncillaryId = ?UTIL:data_lookup(TestData, ancillary_id),
     RequestBody = jsx:encode([{<<"inventoryId">>, 111},
+                              {<<"allocatedQuantity">>, 1},
+                              {<<"availableQuantity">>, 1},
                               {<<"ancillary">>, [{<<"id">>, AncillaryId}]}]),
     AllocatedAncillaryCollectionUri = <<?HOST/binary,
                                         (<<"/flights/111/allocated-ancillaries">>)/binary>>,
@@ -184,18 +186,28 @@ create_ancillary_booking(Config) ->
                               {<<"allocatedAncillary">>, [{<<"id">>, AllocatedAncillaryId}]}]),
     AncillaryBookingCollectionUri = <<?HOST/binary,
                                       (<<"/flights/111/ancillary-bookings">>)/binary>>,
-    {ok, Response} = lhttpc:request_client(Client, AncillaryBookingCollectionUri,
-        post, [], RequestBody, 10000),
-    ?assertEqual({{201, "Created"}, Response}, {?UTIL:status(Response), Response}),
-    ResponseHeaders = ?UTIL:headers(Response),
+    {ok, CreatedResponse} = lhttpc:request_client(Client, AncillaryBookingCollectionUri,
+                                                  post, [], RequestBody, 10000),
+    ?assertEqual({{201, "Created"}, CreatedResponse},
+                 {?UTIL:status(CreatedResponse), CreatedResponse}),
+    CreatedResponseHeaders = ?UTIL:headers(CreatedResponse),
     {"Location", AncillaryBookingLocation} =
-        lists:keyfind("Location", 1, ResponseHeaders),
+        lists:keyfind("Location", 1, CreatedResponseHeaders),
     true = ?UTIL:data_insert(TestData, ancillary_booking_location, AncillaryBookingLocation),
-    ResponseBody = ?UTIL:body(Response),
-    ResponseObject = jsx:decode(ResponseBody),
-    {<<"href">>, _AncillaryBookingHref} = lists:keyfind(<<"href">>, 1, ResponseObject),
-    {<<"id">>, AncillaryBookingId} = lists:keyfind(<<"id">>, 1, ResponseObject),
-    true = ?UTIL:data_insert(TestData, ancillary_booking_id, AncillaryBookingId).
+    CreatedResponseBody = ?UTIL:body(CreatedResponse),
+    CreatedResponseObject = jsx:decode(CreatedResponseBody),
+    {<<"href">>, _AncillaryBookingHref} = lists:keyfind(<<"href">>, 1, CreatedResponseObject),
+    {<<"id">>, AncillaryBookingId} = lists:keyfind(<<"id">>, 1, CreatedResponseObject),
+    true = ?UTIL:data_insert(TestData, ancillary_booking_id, AncillaryBookingId),
+    % Trying to book 1 of the same allocated ancillary again, expected to
+    % inform me that the allocated ancillary is not available any more
+    {ok, OkResponse} = lhttpc:request_client(Client, AncillaryBookingCollectionUri,
+                                             post, [], RequestBody, 10000),
+    ?assertEqual({{200, "OK"}, OkResponse},
+                 {?UTIL:status(OkResponse), OkResponse}),
+    OkResponseBody = ?UTIL:body(OkResponse),
+    OkResponseObject = jsx:decode(OkResponseBody),
+    {<<"errors">>, _Errors} = lists:keyfind(<<"errors">>, 1, OkResponseObject).
 
 read_ancillary_booking(Config) ->
     Client = ?config(client, Config),

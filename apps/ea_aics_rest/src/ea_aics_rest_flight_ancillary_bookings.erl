@@ -35,27 +35,12 @@ process('POST', WebArg, ["flights", Uri_FlightId, "ancillary-bookings"] = Path) 
     case ea_aics_rest_json:parse(validation_spec(), Json) of
         {invalid_json, Reason, JsonFields} ->
             lager:info("Invalid JSON ancillary-bookings. Reason: ~p, Input: ~p",
-                       [Reason,JsonFields]),
+                       [Reason, JsonFields]),
             [{status, ?HTTP_400}];
         Values ->
             FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
             AncillaryBookingInput = json_to_record(Values),
-            {ok, #ea_aics_ancillary_booking{} = AncillaryBooking}
-                = ea_aics_store_ancillary_bookings:create(FlightId,
-                                                          AncillaryBookingInput),
-            ok = ea_aics_mq:produce(AncillaryBooking),
-            JsonView = json_view_ancillary_booking(WebArg, Path, FlightId,
-                                                   AncillaryBooking),
-            HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
-            HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
-            HttpContent = {content, HttpContentType, HttpContentBody},
-            AncillaryBookingId = AncillaryBooking#ea_aics_ancillary_booking.id,
-            ResourceInstanceUri = resource_instance_uri(WebArg, Path, FlightId,
-                                                        AncillaryBookingId),
-            HttpStatus = {status, ?HTTP_201},
-            HeaderLocation = {"Location", ResourceInstanceUri},
-            HttpHeaders = {allheaders, [{header, HeaderLocation}]},
-            [HttpContent, HttpStatus, HttpHeaders]
+            do_process_post(WebArg, Path, FlightId, AncillaryBookingInput)
     end;
 process('GET', WebArg, ["flights", Uri_FlightId, "ancillary-bookings"] = Path) ->
     FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
@@ -134,6 +119,27 @@ json_view_ancillary_bookings(WebArg, Path, FlightId, AncillaryBookings) when is_
 %% ===================================================================
 %%  Internal Functions
 %% ===================================================================
+
+do_process_post(WebArg, Path, FlightId, AncillaryBookingInput) ->
+    case ea_aics_store_ancillary_bookings:create(FlightId, AncillaryBookingInput) of
+        {ok, #ea_aics_ancillary_booking{} = AncillaryBooking} ->
+            ok = ea_aics_mq:produce(AncillaryBooking),
+            JsonView = json_view_ancillary_booking(WebArg, Path, FlightId,
+                                                   AncillaryBooking),
+            HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
+            HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
+            HttpContent = {content, HttpContentType, HttpContentBody},
+            AncillaryBookingId = AncillaryBooking#ea_aics_ancillary_booking.id,
+            ResourceInstanceUri = resource_instance_uri(WebArg, Path, FlightId,
+                                                        AncillaryBookingId),
+            HttpStatus = {status, ?HTTP_201},
+            HeaderLocation = {"Location", ResourceInstanceUri},
+            HttpHeaders = {allheaders, [{header, HeaderLocation}]},
+            [HttpContent, HttpStatus, HttpHeaders];
+        {error, ErrorReason = not_available} ->
+            ea_aics_rest_utils:error_view(WebArg, Path, ErrorReason)
+    end.
+
 
 resource_collection_uri(WebArg, _Path, FlightId) ->
     Separator = <<"/">>,

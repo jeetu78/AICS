@@ -37,7 +37,8 @@
 %% @end
 %%------------------------------------------------------------------------------
 
--spec create(binary(), #ea_aics_ancillary_booking{}) -> {ok, #ea_aics_ancillary_booking{}}.
+-spec create(binary(), #ea_aics_ancillary_booking{}) -> {ok, #ea_aics_ancillary_booking{}} |
+                                                        {error, not_available}.
 
 create(FlightId, AncillaryBookingInput) ->
     ea_aics_store:do_query(
@@ -131,11 +132,15 @@ do_create_transaction(ConnectionPid, FlightId, AncillaryBookingInput) ->
     {atomic, Response} =
         mysql_conn:transaction(ConnectionPid,
             fun() ->
-                {ok, AncillaryBookingId} = do_create(ConnectionPid, FlightId,
-                    AncillaryBookingInput),
-                {ok, AncillaryBooking} = do_read(ConnectionPid, FlightId,
-                    AncillaryBookingId),
-                {atomic, {ok, AncillaryBooking}}
+                case do_create(ConnectionPid, FlightId,
+                               AncillaryBookingInput) of
+                    {ok, AncillaryBookingId} ->
+                        {ok, AncillaryBooking} = do_read(ConnectionPid, FlightId,
+                                                         AncillaryBookingId),
+                        {atomic, {ok, AncillaryBooking}};
+                    {error, not_available} ->
+                        {atomic, {error, not_available}}
+                end
             end, self()),
     Response.
 
@@ -159,10 +164,26 @@ do_create(ConnectionPid, FlightId, AncillaryBookingInput) ->
     AncillaryBookingId = ea_aics_store:generate_uuid(),
     RecordFieldsInputs = record_fields(AncillaryBookingId, FlightId,
         AncillaryBookingInput),
-    Query = sqerl:sql({insert, 'ANCILLARY_TX', RecordFieldsInputs}, true),
-    {updated, QueryResult} = ea_aics_store:do_fetch(ConnectionPid, Query),
-    #mysql_result{affectedrows = 1} = QueryResult,
-    {ok, AncillaryBookingId}.
+    % TODO the following logic keeps the ancillary inventory counters
+    % updated, should be moved in do_create_transaction and use
+    % ea_aics_store_allocated_ancillaries:update(x,x,x) when
+    % updates will be implemented
+    AncillaryInventoryId = proplists:get_value('ANCILLARY_INVENTORY_UUID',
+        RecordFieldsInputs),
+    Quantity = proplists:get_value('QUANTITY', RecordFieldsInputs),
+    UpdateQuery = sqerl:sql({update, 'ANCILLARY_INVENTORY',
+        [{'AVAILABLE_QUANTITY', {'AVAILABLE_QUANTITY', '-', Quantity}}],
+        {where, {'and', [{'UUID', '=', AncillaryInventoryId},
+                         {'AVAILABLE_QUANTITY', '>=', Quantity}]}}}, true),
+    InsertQuery = sqerl:sql({insert, 'ANCILLARY_TX', RecordFieldsInputs}, true),
+    case ea_aics_store:do_fetch(ConnectionPid, UpdateQuery) of
+        {updated, #mysql_result{affectedrows = 1}} ->
+            {updated, QueryResult} = ea_aics_store:do_fetch(ConnectionPid, InsertQuery),
+            #mysql_result{affectedrows = 1} = QueryResult,
+            {ok, AncillaryBookingId};
+        {updated, #mysql_result{affectedrows = 0}} ->
+            {error, not_available}
+    end.
 
 do_read(ConnectionPid, FlightId) ->
     ResultFieldsKeys = result_fields_keys(),

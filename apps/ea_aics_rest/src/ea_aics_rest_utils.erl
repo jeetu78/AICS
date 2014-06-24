@@ -17,11 +17,13 @@
          parse_uri_id/1,
          record_to_json_value/1,
          resource_context_uri/1,
-         resource_context_uri/2]).
+         resource_context_uri/2,
+         error_view/3]).
 
 -export_type([]).
 
 -include_lib("yaws/include/yaws_api.hrl").
+-include("ea_aics_rest.hrl").
 
 %% ===================================================================
 %%  API
@@ -65,6 +67,17 @@ resource_context_uri(WebArg, Context) ->
     Port = list_to_binary(WebRedirSelf#redir_self.port_str),
     Separator = <<"/">>,
     <<Scheme/binary, Host/binary, Port/binary, Separator/binary, Context/binary>>.
+
+-spec error_view(#arg{}, [string()], atom()) -> list().
+
+error_view(_WebArg, _Path, ErrorReason) when is_atom(ErrorReason) ->
+    HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
+    JsonView = [{<<"errors">>, [[{<<"message">>, atom_to_binary(ErrorReason, utf8)},
+                                 {<<"code">>, 0}]]}],
+    HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
+    HttpContent = {content, HttpContentType, HttpContentBody},
+    HttpStatus = {status, ?HTTP_200},
+    [HttpContent, HttpStatus].
 
 %% ===================================================================
 %%  Internal Functions
