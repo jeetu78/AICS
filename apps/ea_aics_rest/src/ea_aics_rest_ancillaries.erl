@@ -51,7 +51,7 @@ process('POST', WebArg, ["ancillaries"] = Path) ->
             ResourceInstanceUri = resource_instance_uri(WebArg, Path, AncillaryId),
             HttpStatus = {status, ?HTTP_201},
             HeaderLocation = {"Location", ResourceInstanceUri},
-            HttpHeaders = {allheaders, [{header, HeaderLocation}]},
+            HttpHeaders = {header, HeaderLocation},
             [HttpContent, HttpStatus, HttpHeaders]
     end;
 process('GET', WebArg, ["ancillaries"] = Path) ->
@@ -149,9 +149,8 @@ json_view_ancillaries(WebArg, Path, Ancillaries) when is_list(Ancillaries) ->
 
 resource_collection_uri(WebArg, _Path) ->
     ResourceContextUri = ea_aics_rest_utils:resource_context_uri(WebArg),
-    Separator = <<"/">>,
     ResourceCollection = <<"ancillaries">>,
-    <<ResourceContextUri/binary, Separator/binary, ResourceCollection/binary>>.
+    <<ResourceContextUri/binary, ResourceCollection/binary>>.
 
 resource_instance_uri(WebArg, Path, AncillaryId) ->
     ResourceCollectionUri = resource_collection_uri(WebArg, Path),
@@ -218,7 +217,7 @@ module_test_() ->
         ok = meck:new(ea_aics_store_ancillaries, [non_strict]),
         ok = meck:new(ea_aics_rest_utils, [passthrough]),
         ok = meck:expect(ea_aics_rest_utils, resource_context_uri, 1,
-            <<"http://localhost:8000">>)
+            <<"http://localhost:8000/">>)
      end,
      fun(_) ->
         ?assert(meck:validate(ea_aics_rest_utils)),
@@ -246,7 +245,7 @@ module_test_() ->
                     [HttpResponseContent, HttpResponseStatus, HttpResponseHeaders] = HttpResponse,
                     ?assertMatch({content, ?HTTP_CONTENT_TYPE_JSON, _HttpResponseContentBody}, HttpResponseContent),
                     ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus),
-                    ?assertMatch({allheaders, [{header, {"Location", _ResourceInstanceUri}}]}, HttpResponseHeaders)
+                    ?assertMatch({header, {"Location", _ResourceInstanceUri}}, HttpResponseHeaders)
                 end
             ]
         },
