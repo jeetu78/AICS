@@ -135,7 +135,7 @@ do_process_post(WebArg, Path, FlightId, AncillaryBookingInput) ->
                                                         AncillaryBookingId),
             HttpStatus = {status, ?HTTP_201},
             HeaderLocation = {"Location", ResourceInstanceUri},
-            HttpHeaders = {allheaders, [{header, HeaderLocation}]},
+            HttpHeaders = {header, HeaderLocation},
             [HttpContent, HttpStatus, HttpHeaders];
         {error, ErrorReason = not_available} ->
             ea_aics_rest_utils:error_view(WebArg, Path, ErrorReason)
@@ -144,10 +144,10 @@ do_process_post(WebArg, Path, FlightId, AncillaryBookingInput) ->
 
 resource_collection_uri(WebArg, _Path, FlightId) ->
     Separator = <<"/">>,
-    Context = <<(<<"flights">>)/binary, Separator/binary, FlightId/binary>>,
+    Context = <<(<<"flights">>)/binary, Separator/binary, FlightId/binary, Separator/binary>>,
     ResourceContextUri = ea_aics_rest_utils:resource_context_uri(WebArg, Context),
     ResourceCollection = <<"ancillary-bookings">>,
-    <<ResourceContextUri/binary, Separator/binary, ResourceCollection/binary>>.
+    <<ResourceContextUri/binary, ResourceCollection/binary>>.
 
 resource_instance_uri(WebArg, Path, FlightId, AncillaryBookingId) ->
     ResourceCollectionUri = resource_collection_uri(WebArg, Path, FlightId),
@@ -194,9 +194,9 @@ module_test_() ->
         ok = meck:new(ea_aics_store_ancillary_bookings, [non_strict]),
         ok = meck:new(ea_aics_rest_utils, [passthrough]),
         ok = meck:expect(ea_aics_rest_utils, resource_context_uri, 1,
-            <<"http://localhost:8000">>),
+            <<"http://localhost:8000/">>),
         ok = meck:expect(ea_aics_rest_utils, resource_context_uri, 2,
-            <<"http://localhost:8000">>)
+            <<"http://localhost:8000/">>)
      end,
      fun(_) ->
         ?assert(meck:validate(ea_aics_rest_utils)),
@@ -235,7 +235,7 @@ module_test_() ->
                     [HttpResponseContent, HttpResponseStatus, HttpResponseHeaders] = HttpResponse,
                     ?assertMatch({content, ?HTTP_CONTENT_TYPE_JSON, _HttpResponseContentBody}, HttpResponseContent),
                     ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus),
-                    ?assertMatch({allheaders, [{header, {"Location", _ResourceInstanceUri}}]}, HttpResponseHeaders)
+                    ?assertMatch({header, {"Location", _ResourceInstanceUri}}, HttpResponseHeaders)
                 end
             ]
         },

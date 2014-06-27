@@ -75,13 +75,21 @@ create_ancillary(Config) ->
     TestData = ?config(test_data, Config),
     RequestBody = jsx:encode([{<<"masterCode">>, 111}]),
     AncillaryCollectionUri = <<?HOST/binary, (<<"/ancillaries">>)/binary>>,
-    {ok, Response} = lhttpc:request_client(Client, AncillaryCollectionUri,
+    %% We create more than one ancillary to ensure that only a particular
+    %% ancillary is being allocated to a given flight and eventually booked
+    {ok, Response1} = lhttpc:request_client(Client, AncillaryCollectionUri,
         post, [], RequestBody, 10000),
-    ?assertEqual({{201, "Created"}, Response}, {?UTIL:status(Response), Response}),
-    ResponseHeaders = ?UTIL:headers(Response),
-    {"Location", AncillaryLocation} = lists:keyfind("Location", 1, ResponseHeaders),
+    {ok, Response2} = lhttpc:request_client(Client, AncillaryCollectionUri,
+        post, [], RequestBody, 10000),
+    ?assertEqual({{201, "Created"}, Response1}, {?UTIL:status(Response1), Response1}),
+    ?assertEqual({{201, "Created"}, Response2}, {?UTIL:status(Response2), Response2}),
+    ResponseHeaders = ?UTIL:headers(Response1),
+    {"Location", AncillaryLocation} =
+        lists:keyfind("Location", 1, ResponseHeaders),
+    {"Content-Type", _ContentType} =
+        lists:keyfind("Content-Type", 1, ResponseHeaders),
     true = ?UTIL:data_insert(TestData, ancillary_location, AncillaryLocation),
-    ResponseBody = ?UTIL:body(Response),
+    ResponseBody = ?UTIL:body(Response1),
     ResponseObject = jsx:decode(ResponseBody),
     {<<"href">>, _AncillaryHref} = lists:keyfind(<<"href">>, 1, ResponseObject),
     {<<"id">>, AncillaryId} = lists:keyfind(<<"id">>, 1, ResponseObject),
@@ -93,11 +101,12 @@ read_ancillary(Config) ->
     AncillaryLocation = ?UTIL:data_lookup(TestData, ancillary_location),
     {ok, Response} = lhttpc:request_client(Client, AncillaryLocation,
         get, [], [], 10000),
+    ?assertEqual({{200, "OK"}, Response}, {?UTIL:status(Response), Response}),
+    ResponseHeaders = ?UTIL:headers(Response),
     ResponseBody = ?UTIL:body(Response),
     ResponseObject = jsx:decode(ResponseBody),
     {<<"href">>, _AncillaryHref} = lists:keyfind(<<"href">>, 1, ResponseObject),
-    {<<"id">>, AncillaryId} = lists:keyfind(<<"id">>, 1, ResponseObject),
-    ?assertEqual({{200, "OK"}, Response}, {?UTIL:status(Response), Response}).
+    {<<"id">>, AncillaryId} = lists:keyfind(<<"id">>, 1, ResponseObject).
 
 read_ancillaries(Config) ->
     Client = ?config(client, Config),
@@ -105,11 +114,11 @@ read_ancillaries(Config) ->
     AncillaryCollectionUri = <<"http://localhost:8000/ancillaries">>,
     {ok, Response} = lhttpc:request_client(Client, AncillaryCollectionUri,
         get, [], [], 10000),
+    ?assertEqual({{200, "OK"}, Response}, {?UTIL:status(Response), Response}),
     ResponseBody = ?UTIL:body(Response),
     ResponseObject = jsx:decode(ResponseBody),
     {<<"href">>, _AncillariesHref} = lists:keyfind(<<"href">>, 1, ResponseObject),
-    {<<"ancillaries">>, _Ancillaries} = lists:keyfind(<<"ancillaries">>, 1, ResponseObject),
-    ?assertEqual({{200, "OK"}, Response}, {?UTIL:status(Response), Response}).
+    {<<"ancillaries">>, _Ancillaries} = lists:keyfind(<<"ancillaries">>, 1, ResponseObject).
 
 delete_ancillary(Config) ->
     Client = ?config(client, Config),
@@ -135,6 +144,8 @@ create_allocated_ancillary(Config) ->
     ResponseHeaders = ?UTIL:headers(Response),
     {"Location", AllocatedAncillaryLocation} =
         lists:keyfind("Location", 1, ResponseHeaders),
+    {"Content-Type", _ContentType} =
+        lists:keyfind("Content-Type", 1, ResponseHeaders),
     true = ?UTIL:data_insert(TestData, allocated_ancillary_location, AllocatedAncillaryLocation),
     ResponseBody = ?UTIL:body(Response),
     ResponseObject = jsx:decode(ResponseBody),
@@ -148,11 +159,11 @@ read_allocated_ancillary(Config) ->
     AllocatedAncillaryLocation = ?UTIL:data_lookup(TestData, allocated_ancillary_location),
     {ok, Response} = lhttpc:request_client(Client, AllocatedAncillaryLocation,
         get, [], [], 10000),
+    ?assertEqual({{200, "OK"}, Response}, {?UTIL:status(Response), Response}),
     ResponseBody = ?UTIL:body(Response),
     ResponseObject = jsx:decode(ResponseBody),
     {<<"href">>, _AllocatedAncillaryHref} = lists:keyfind(<<"href">>, 1, ResponseObject),
-    {<<"id">>, AllocatedAncillaryId} = lists:keyfind(<<"id">>, 1, ResponseObject),
-    ?assertEqual({{200, "OK"}, Response}, {?UTIL:status(Response), Response}).
+    {<<"id">>, AllocatedAncillaryId} = lists:keyfind(<<"id">>, 1, ResponseObject).
 
 read_allocated_ancillaries(Config) ->
     Client = ?config(client, Config),
@@ -161,12 +172,13 @@ read_allocated_ancillaries(Config) ->
                                         (<<"/flights/111/allocated-ancillaries">>)/binary>>,
     {ok, Response} = lhttpc:request_client(Client, AllocatedAncillaryCollectionUri,
         get, [], [], 10000),
+    ?assertEqual({{200, "OK"}, Response}, {?UTIL:status(Response), Response}),
     ResponseBody = ?UTIL:body(Response),
     ResponseObject = jsx:decode(ResponseBody),
     {<<"href">>, _AllocatedAncillariesHref} = lists:keyfind(<<"href">>, 1, ResponseObject),
-    {<<"allocatedAncillaries">>, _AllocatedAncillaries} =
+    {<<"allocatedAncillaries">>, AllocatedAncillaries} =
         lists:keyfind(<<"allocatedAncillaries">>, 1, ResponseObject),
-    ?assertEqual({{200, "OK"}, Response}, {?UTIL:status(Response), Response}).
+    ?assertEqual(1, length(AllocatedAncillaries)).
 
 delete_allocated_ancillary(Config) ->
     Client = ?config(client, Config),
@@ -193,6 +205,8 @@ create_ancillary_booking(Config) ->
     CreatedResponseHeaders = ?UTIL:headers(CreatedResponse),
     {"Location", AncillaryBookingLocation} =
         lists:keyfind("Location", 1, CreatedResponseHeaders),
+    {"Content-Type", _ContentType} =
+        lists:keyfind("Content-Type", 1, CreatedResponseHeaders),
     true = ?UTIL:data_insert(TestData, ancillary_booking_location, AncillaryBookingLocation),
     CreatedResponseBody = ?UTIL:body(CreatedResponse),
     CreatedResponseObject = jsx:decode(CreatedResponseBody),
@@ -215,11 +229,11 @@ read_ancillary_booking(Config) ->
     AncillaryBookingLocation = ?UTIL:data_lookup(TestData, ancillary_booking_location),
     {ok, Response} = lhttpc:request_client(Client, AncillaryBookingLocation,
         get, [], [], 10000),
+    ?assertEqual({{200, "OK"}, Response}, {?UTIL:status(Response), Response}),
     ResponseBody = ?UTIL:body(Response),
     ResponseObject = jsx:decode(ResponseBody),
     {<<"href">>, _AncillaryBookingHref} = lists:keyfind(<<"href">>, 1, ResponseObject),
-    {<<"id">>, AncillaryBookingId} = lists:keyfind(<<"id">>, 1, ResponseObject),
-    ?assertEqual({{200, "OK"}, Response}, {?UTIL:status(Response), Response}).
+    {<<"id">>, AncillaryBookingId} = lists:keyfind(<<"id">>, 1, ResponseObject).
 
 read_ancillary_bookings(Config) ->
     Client = ?config(client, Config),
@@ -228,12 +242,12 @@ read_ancillary_bookings(Config) ->
         <<"http://localhost:8000/flights/111/ancillary-bookings">>,
     {ok, Response} = lhttpc:request_client(Client, AncillaryBookingCollectionUri,
         get, [], [], 10000),
+    ?assertEqual({{200, "OK"}, Response}, {?UTIL:status(Response), Response}),
     ResponseBody = ?UTIL:body(Response),
     ResponseObject = jsx:decode(ResponseBody),
     {<<"href">>, _AncillaryBookingsHref} = lists:keyfind(<<"href">>, 1, ResponseObject),
     {<<"ancillaryBookings">>, _AncillaryBookings} =
-        lists:keyfind(<<"ancillaryBookings">>, 1, ResponseObject),
-    ?assertEqual({{200, "OK"}, Response}, {?UTIL:status(Response), Response}).
+        lists:keyfind(<<"ancillaryBookings">>, 1, ResponseObject).
 
 delete_ancillary_booking(Config) ->
     Client = ?config(client, Config),
