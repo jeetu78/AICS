@@ -1,10 +1,10 @@
 %%%=============================================================================
 %%% @author Alexej Tessaro <alexej.tessaro@erlang-solutions.com>
 %%% @doc The Ancillary Inventory Control System rest interface
-%%% flight allocated ancillaries resource
+%%% flight ancillary bookings resource
 %%% @end
 %%%=============================================================================
--module(ea_aics_rest_flight_allocated_ancillaries).
+-module(ea_aics_rest_flight_ancillary_bookings).
 
 -ifdef(TEST).
 -include_lib("eqc/include/eqc.hrl").
@@ -12,9 +12,7 @@
 -endif.
 
 -export([process/3,
-         validation_spec/0,
-         json_view_allocated_ancillary/4,
-         json_view_allocated_ancillaries/4]).
+         validation_spec/0]).
 
 -export_type([]).
 
@@ -24,71 +22,53 @@
 
 %%=============================================================================
 %%  API
-%% ============================================================================
+%%=============================================================================
 
-%%-----------------------------------------------------------------------------
-%% @doc Implements HTTP REST on a resource of flight allocated-ancillaries type.
+%%------------------------------------------------------------------------------
+%% @doc Implements HTTP REST on a resource of ancillary-booking type.
 %% @end
-%%-----------------------------------------------------------------------------
+%%------------------------------------------------------------------------------
 -spec process(atom(), #arg{}, [string()]) -> list().
 
-process('POST', WebArg, ["flights", Uri_FlightId, "allocated-ancillaries"] = Path) ->
+process('POST', WebArg, ["flights", Uri_FlightId, "ancillary-bookings"] = Path) ->
     Body = yaws_api:arg_clidata(WebArg),
     Json = ea_aics_rest_utils:json_decode(Body),
     case ea_aics_rest_json:parse(validation_spec(), Json) of
         {invalid_json, Reason, JsonFields} ->
-            lager:info("Invalid JSON allocated-ancillaries. Reason: ~p, Input: ~p",
+            lager:info("Invalid JSON ancillary-bookings. Reason: ~p, Input: ~p",
                        [Reason, JsonFields]),
             [{status, ?HTTP_400}];
         Values ->
             FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
-            AllocatedAncillaryInput = json_to_record(Values, FlightId),
-            {ok, #ea_aics_allocated_ancillary{} = AllocatedAncillary}
-                = ea_aics_store_allocated_ancillaries:create(
-                    FlightId,
-                    AllocatedAncillaryInput),
-            JsonView = json_view_allocated_ancillary(WebArg,
-                                                     Path, FlightId,
-                                                     AllocatedAncillary),
-            HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
-            HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
-            HttpContent = {content, HttpContentType, HttpContentBody},
-            AllocatedAncillaryId
-                = AllocatedAncillary#ea_aics_allocated_ancillary.id,
-            ResourceInstanceUri = resource_instance_uri(WebArg, Path,
-                                                        FlightId,
-                                                        AllocatedAncillaryId),
-            HttpStatus = {status, ?HTTP_201},
-            HeaderLocation = {"Location", ResourceInstanceUri},
-            HttpHeaders = {header, HeaderLocation},
-            [HttpContent, HttpStatus, HttpHeaders]
+            AncillaryBookingInput = json_to_record(Values),
+            do_process_post(WebArg, Path, FlightId, AncillaryBookingInput)
     end;
-process('GET', WebArg, ["flights", Uri_FlightId, "allocated-ancillaries"] = Path) ->
+process('GET', WebArg, ["flights", Uri_FlightId, "ancillary-bookings"] = Path) ->
     FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
-    {ok, AllocatedAncillaries} = ea_aics_store_allocated_ancillaries:read(FlightId),
-    JsonView = json_view_allocated_ancillaries(WebArg, Path, FlightId, AllocatedAncillaries),
+    {ok, AncillaryBookings} = ea_aics_store_ancillary_bookings:read(FlightId),
+    JsonView = json_view_ancillary_bookings(WebArg, Path, FlightId, AncillaryBookings),
     HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
     HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
     HttpContent = {content, HttpContentType, HttpContentBody},
     HttpStatus = {status, ?HTTP_200},
     [HttpContent, HttpStatus];
-process('GET', WebArg, ["flights", Uri_FlightId, "allocated-ancillaries", Uri_AllocatedAncillaryId] = Path) ->
+process('GET', WebArg, ["flights", Uri_FlightId, "ancillary-bookings", Uri_AncillaryBookingId] = Path) ->
     FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
-    AllocatedAncillaryId = ea_aics_rest_utils:parse_uri_id(Uri_AllocatedAncillaryId),
-    {ok, AllocatedAncillary} = ea_aics_store_allocated_ancillaries:read(FlightId, AllocatedAncillaryId),
-    JsonView = json_view_allocated_ancillary(WebArg, Path, FlightId, AllocatedAncillary),
+    AncillaryBookingId = ea_aics_rest_utils:parse_uri_id(Uri_AncillaryBookingId),
+    {ok, AncillaryBooking} = ea_aics_store_ancillary_bookings:read(FlightId, AncillaryBookingId),
+    JsonView = json_view_ancillary_booking(WebArg, Path, FlightId, AncillaryBooking),
     HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
     HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
     HttpContent = {content, HttpContentType, HttpContentBody},
     HttpStatus = {status, ?HTTP_200},
     [HttpContent, HttpStatus];
-process('PUT', _WebArg, ["flights", _Uri_FlightId, "allocated-ancillaries", _Uri_AllocatedAncillaryId] = _Path) ->
+process('PUT', _WebArg, ["flights", _Uri_FlightId, "ancillary-bookings", _Uri_AncillaryBookingId] = _Path) ->
     HttpStatus = {status, ?HTTP_501},
     [HttpStatus];
-process('DELETE', _WebArg, ["flights", Uri_FlightId, "allocated-ancillaries", Uri_AllocatedAncillaryId] = _Path) ->
+process('DELETE', _WebArg, ["flights", Uri_FlightId, "ancillary-bookings", Uri_AncillaryBookingId] = _Path) ->
     FlightId = ea_aics_rest_utils:parse_uri_id(Uri_FlightId),
-    AllocatedAncillaryId = ea_aics_rest_utils:parse_uri_id(Uri_AllocatedAncillaryId),
-    ok = ea_aics_store_allocated_ancillaries:delete(FlightId, AllocatedAncillaryId),
+    AncillaryBookingId = ea_aics_rest_utils:parse_uri_id(Uri_AncillaryBookingId),
+    ok = ea_aics_store_ancillary_bookings:delete(FlightId, AncillaryBookingId),
     HttpStatus = {status, ?HTTP_204},
     [HttpStatus];
 process(_Method, _WebArg, _Path) ->
@@ -96,72 +76,111 @@ process(_Method, _WebArg, _Path) ->
     [HttpStatus].
 
 %%------------------------------------------------------------------------------
-%% @doc Allocated-ancillary type resource instance JSON intermediate format.
+%% @doc Ancillary-booking type resource instance JSON intermediate format.
 %% @end
 %%------------------------------------------------------------------------------
--spec json_view_allocated_ancillary(#arg{}, [string()], binary(), #ea_aics_allocated_ancillary{}) -> term().
 
-json_view_allocated_ancillary(WebArg, Path, FlightId, #ea_aics_allocated_ancillary{} = AllocatedAncillary) ->
-    AllocatedAncillaryId = AllocatedAncillary#ea_aics_allocated_ancillary.id,
-    ResourceUri = resource_instance_uri(WebArg, Path, FlightId, AllocatedAncillaryId),
-    AllocatedAncillary_Ancillary = AllocatedAncillary#ea_aics_allocated_ancillary.ancillary,
-    AllocatedAncillary_AncillaryJsonView =
-        ea_aics_rest_ancillaries:json_view_ancillary(WebArg, Path, AllocatedAncillary_Ancillary),
+-spec json_view_ancillary_booking(#arg{}, [string()], binary(), #ea_aics_ancillary_booking{}) -> term().
+
+json_view_ancillary_booking(WebArg, Path, FlightId, #ea_aics_ancillary_booking{} = AncillaryBooking) ->
+    AncillaryBookingId = AncillaryBooking#ea_aics_ancillary_booking.id,
+    ResourceUri = resource_instance_uri(WebArg, Path, FlightId, AncillaryBookingId),
+    AncillaryBooking_AllocatedAncillary = AncillaryBooking#ea_aics_ancillary_booking.allocated_ancillary,
+    AncillaryBooking_AllocatedAncillaryJsonView =
+        ea_aics_rest_flight_allocated_ancillaries:json_view_allocated_ancillary(WebArg,
+            Path, FlightId, AncillaryBooking_AllocatedAncillary),
     [{<<"href">>, ResourceUri},
-     {<<"id">>, AllocatedAncillaryId},
-     {<<"availableQuantity">>,
-        ea_aics_rest_utils:record_to_json_value(AllocatedAncillary#ea_aics_allocated_ancillary.available_quantity)},
-     {<<"ancillary">>, AllocatedAncillary_AncillaryJsonView}].
+     {<<"id">>, AncillaryBookingId},
+     {<<"txnId">>,
+      ea_aics_rest_utils:record_to_json_value(AncillaryBooking#ea_aics_ancillary_booking.txn_id)},
+     {<<"customerId">>,
+      ea_aics_rest_utils:record_to_json_value(AncillaryBooking#ea_aics_ancillary_booking.customer_id)},
+     {<<"operationType">>,
+      ea_aics_rest_utils:record_to_json_value(AncillaryBooking#ea_aics_ancillary_booking.operation_type)},
+     {<<"bookingTime">>,
+      ea_aics_rest_utils:record_to_json_value(AncillaryBooking#ea_aics_ancillary_booking.booking_time)},
+     {<<"quantity">>,
+      ea_aics_rest_utils:record_to_json_value(AncillaryBooking#ea_aics_ancillary_booking.quantity)},
+     {<<"modifiedTime">>,
+      ea_aics_rest_utils:record_to_json_value(AncillaryBooking#ea_aics_ancillary_booking.modified_time)},
+     {<<"allocatedAncillary">>, AncillaryBooking_AllocatedAncillaryJsonView}].
 
 %%------------------------------------------------------------------------------
-%% @doc Allocated-ancillaries type resource collection JSON intermediate format.
+%% @doc Ancillary-bookings type resource collection JSON intermediate format.
 %% @end
 %%------------------------------------------------------------------------------
--spec json_view_allocated_ancillaries(#arg{}, [string()], binary(), [#ea_aics_ancillary{}]) -> term().
 
-json_view_allocated_ancillaries(WebArg, Path, FlightId, AllocatedAncillaries) when is_list(AllocatedAncillaries) ->
+-spec json_view_ancillary_bookings(#arg{}, [string()], binary(), [#ea_aics_ancillary_booking{}]) -> term().
+
+json_view_ancillary_bookings(WebArg, Path, FlightId, AncillaryBookings) when is_list(AncillaryBookings) ->
     [{<<"href">>, resource_collection_uri(WebArg, Path, FlightId)},
-     {<<"allocatedAncillaries">>, [json_view_allocated_ancillary(WebArg, Path, FlightId, AllocatedAncillary) ||
-        AllocatedAncillary <- AllocatedAncillaries]}].
+     {<<"ancillaryBookings">>, [json_view_ancillary_booking(WebArg, Path, FlightId, AncillaryBooking) ||
+        AncillaryBooking <- AncillaryBookings]}].
 
-%%=============================================================================
+%% ===================================================================
 %%  Internal Functions
-%%=============================================================================
+%% ===================================================================
+
+do_process_post(WebArg, Path, FlightId, AncillaryBookingInput) ->
+    case ea_aics_store_ancillary_bookings:create(FlightId, AncillaryBookingInput) of
+        %%{ok, #ea_aics_ancillary_booking{} = AncillaryBooking} ->
+            {ok, AncillaryBookingId} ->
+	    %%ok = ea_aics_mq:produce(AncillaryBooking),
+            %%JsonView = json_view_ancillary_booking(WebArg, Path, FlightId,
+            %%                                       AncillaryBooking),
+            JsonView=[{<<"Transaction Id">>,AncillaryBookingId}],
+	    HttpContentType = ?HTTP_CONTENT_TYPE_JSON,
+            HttpContentBody = ea_aics_rest_utils:json_encode(JsonView),
+            HttpContent = {content, HttpContentType, HttpContentBody},
+            %%AncillaryBookingId = AncillaryBooking#ea_aics_ancillary_booking.id,
+            %%ResourceInstanceUri = resource_instance_uri(WebArg, Path, FlightId,
+            %%                                            AncillaryBookingId),
+            HttpStatus = {status, ?HTTP_201},
+            %%HeaderLocation = {"Location", ResourceInstanceUri},
+            %%HttpHeaders = {header, HeaderLocation},
+            %%[HttpContent, HttpStatus, HttpHeaders];
+	    [HttpContent, HttpStatus];
+        {error, ErrorReason = not_available} ->
+            ea_aics_rest_utils:error_view(WebArg, Path, ErrorReason)
+    end.
+
 
 resource_collection_uri(WebArg, _Path, FlightId) ->
     Separator = <<"/">>,
     Context = <<(<<"flights">>)/binary, Separator/binary, FlightId/binary, Separator/binary>>,
     ResourceContextUri = ea_aics_rest_utils:resource_context_uri(WebArg, Context),
-    ResourceCollection = <<"allocated-ancillaries">>,
+    ResourceCollection = <<"ancillary-bookings">>,
     <<ResourceContextUri/binary, ResourceCollection/binary>>.
 
-resource_instance_uri(WebArg, Path, FlightId, AllocatedAncillaryId) ->
+resource_instance_uri(WebArg, Path, FlightId, AncillaryBookingId) ->
     ResourceCollectionUri = resource_collection_uri(WebArg, Path, FlightId),
     Separator = <<"/">>,
-    <<ResourceCollectionUri/binary, Separator/binary, AllocatedAncillaryId/binary>>.
+    <<ResourceCollectionUri/binary, Separator/binary, AncillaryBookingId/binary>>.
 
 validation_spec() ->
-    [{<<"inventoryId">>, optional, integer},
-     {<<"allocatedQuantity">>, optional, integer},
-     {<<"availableQuantity">>, optional, integer},
+    [{<<"txnId">>, optional, integer},
+     {<<"operationType">>, optional, string},
+     {<<"bookingTime">>, optional, string},
+     {<<"quantity">>, optional, integer},
+     {<<"customerId">>, optional, string},
      %% TODO: At the moment we have not implemented the possibilty of
-     %% dinamically create an ancillary on this request. Therefore the
-     %% ancillary object now can only be a simple "id". It must be already
-     %% created beforehand.
-     {<<"ancillary">>, mandatory,
+     %% dinamically create an allocated ancillary object on this request.
+     %% Therefore the allocated ancillary object now can only be a simple "id".
+     %% It must be already created beforehand.
+     {<<"allocatedAncillary">>, mandatory,
       {json, [{<<"id">>, mandatory, binary}]}}].
 
-json_to_record(JsonInput, FlightId) ->
-    Ancillary = proplists:get_value(<<"ancillary">>, JsonInput),
-    AncillaryId = proplists:get_value(<<"id">>, Ancillary),
-    #ea_aics_allocated_ancillary{
-        inventory_id = proplists:get_value(<<"inventoryId">>, JsonInput),
-        allocated_quantity = proplists:get_value(<<"allocatedQuantity">>,
-                                                 JsonInput),
-        available_quantity = proplists:get_value(<<"availableQuantity">>,
-                                                 JsonInput),
-        flight = FlightId,
-        ancillary = AncillaryId}.
+json_to_record(JsonInput) ->
+    AllocatedAncillary = proplists:get_value(<<"allocatedAncillary">>,
+                                             JsonInput),
+    AllocatedAncillaryId = proplists:get_value(<<"id">>, AllocatedAncillary),
+    #ea_aics_ancillary_booking{
+        customer_id = proplists:get_value(<<"customerId">>, JsonInput),
+        txn_id = proplists:get_value(<<"txnId">>, JsonInput),
+        operation_type = proplists:get_value(<<"operationType">>, JsonInput),
+        booking_time = proplists:get_value(<<"bookingTime">>, JsonInput),
+        quantity = proplists:get_value(<<"quantity">>, JsonInput),
+        allocated_ancillary = AllocatedAncillaryId}.
 
 %%=============================================================================
 %%  Tests
@@ -175,7 +194,7 @@ module_test_() ->
 
     {foreach,
      fun()  ->
-        ok = meck:new(ea_aics_store_allocated_ancillaries, [non_strict]),
+        ok = meck:new(ea_aics_store_ancillary_bookings, [non_strict]),
         ok = meck:new(ea_aics_rest_utils, [passthrough]),
         ok = meck:expect(ea_aics_rest_utils, resource_context_uri, 1,
             <<"http://localhost:8000/">>),
@@ -184,77 +203,90 @@ module_test_() ->
      end,
      fun(_) ->
         ?assert(meck:validate(ea_aics_rest_utils)),
-        ?assert(meck:validate(ea_aics_store_allocated_ancillaries)),
+        ?assert(meck:validate(ea_aics_store_ancillary_bookings)),
         ok = meck:unload(ea_aics_rest_utils),
-        ok = meck:unload(ea_aics_store_allocated_ancillaries)
+        ok = meck:unload(ea_aics_store_ancillary_bookings)
      end,
      [
-        {"post",
-            [
-                fun() ->
-                    Resource = #ea_aics_allocated_ancillary{id = <<"111">>,
-                                                            ancillary = #ea_aics_ancillary{id = <<"111">>}},
-
-                    ok = meck:expect(ea_aics_store_allocated_ancillaries, create, ['_', '_'], {ok, Resource}),
-
-                    HttpRequestMethod = 'POST',
-                    HttpRequestContentBody = <<"{\"ancillary\": {\"id\": \"111\"}}">>,
-                    HttpRequestPath = ["flights", "111", "allocated-ancillaries"],
-                    WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
-
-                    HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
-
-                    ok = meck:wait(ea_aics_store_allocated_ancillaries, create, '_', 1000),
-
-                    [HttpResponseContent, HttpResponseStatus, HttpResponseHeaders] = HttpResponse,
-                    ?assertMatch({content, ?HTTP_CONTENT_TYPE_JSON, _HttpResponseContentBody}, HttpResponseContent),
-                    ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus),
-                    ?assertMatch({header, {"Location", _ResourceInstanceUri}}, HttpResponseHeaders)
-                end
-            ]
-        },
-        %%{"get collection",
+        %%{"post",
         %%    [
         %%        fun() ->
-        %%            Resources = [#ea_aics_allocated_ancillary{id = <<"111">>,
-        %%                                                      ancillary = #ea_aics_ancillary{id = <<"111">>}},
-        %%                         #ea_aics_allocated_ancillary{id = <<"222">>,
-        %%                                                      ancillary = #ea_aics_ancillary{id = <<"222">>}}],
 
-        %%            ok = meck:expect(ea_aics_store_allocated_ancillaries, read, ['_'], {ok, Resources}),
+        %%            ok = meck:new(ea_aics_mq, [non_strict]),
 
-        %%            HttpRequestMethod = 'GET',
-        %%            HttpRequestContentBody = ?HTTP_CONTENT_BODY_EMPTY,
-        %%            HttpRequestPath = ["flights", "111", "allocated-ancillaries"],
+        %%            ok = meck:expect(ea_aics_mq, produce, ['_'], ok),
+
+        %%            Ancillary = #ea_aics_ancillary{id = <<"111">>},
+        %%            AllocatedAncillary = #ea_aics_allocated_ancillary{id = <<"111">>,
+        %%                                                              ancillary = Ancillary},
+        %%            AncillaryBooking = #ea_aics_ancillary_booking{id = <<"111">>,
+        %%                                                          allocated_ancillary = AllocatedAncillary},
+
+        %%            ok = meck:expect(ea_aics_store_ancillary_bookings, create, ['_', '_'], {ok, AncillaryBooking}),
+
+        %%            HttpRequestMethod = 'POST',
+        %%            HttpRequestContentBody = <<"{\"allocatedAncillary\": {\"id\": \"111\"}}">>,
+        %%            HttpRequestPath = ["flights", "111", "ancillary-bookings"],
         %%            WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
 
         %%            HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
 
-        %%            ok = meck:wait(ea_aics_store_allocated_ancillaries, read, '_', 1000),
+        %%            ok = meck:wait(ea_aics_store_ancillary_bookings, create, '_', 1000),
 
-        %%            [HttpResponseContent, HttpResponseStatus] = HttpResponse,
+        %%            ok = meck:wait(ea_aics_mq, produce, '_', 1000),
+
+        %%            [HttpResponseContent, HttpResponseStatus, HttpResponseHeaders] = HttpResponse,
         %%            ?assertMatch({content, ?HTTP_CONTENT_TYPE_JSON, _HttpResponseContentBody}, HttpResponseContent),
-        %%            ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus)
+        %%            ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus),
+        %%            ?assertMatch({header, {"Location", _ResourceInstanceUri}}, HttpResponseHeaders)
         %%        end
         %%    ]
         %%},
-        {"get instance",
+        {"get collection",
             [
                 fun() ->
-                    ResourceId = <<"111">>,
-                    Resource = #ea_aics_allocated_ancillary{id = ResourceId,
-                                                            ancillary = #ea_aics_ancillary{id = <<"111">>}},
+                    Resources = [#ea_aics_ancillary_booking{id = <<"111">>,
+                                                            allocated_ancillary = #ea_aics_allocated_ancillary{id = <<"111">>,
+                                                                                                               ancillary = #ea_aics_ancillary{id = <<"111">>}}},
+                                 #ea_aics_ancillary_booking{id = <<"222">>,
+                                                            allocated_ancillary = #ea_aics_allocated_ancillary{id = <<"222">>,
+                                                                                                               ancillary = #ea_aics_ancillary{id = <<"222">>}}}],
 
-                    ok = meck:expect(ea_aics_store_allocated_ancillaries, read, ['_', '_'], {ok, Resource}),
+                    ok = meck:expect(ea_aics_store_ancillary_bookings, read, ['_'], {ok, Resources}),
 
                     HttpRequestMethod = 'GET',
                     HttpRequestContentBody = ?HTTP_CONTENT_BODY_EMPTY,
-                    HttpRequestPath = ["flights", "111", "allocated-ancillaries", "111"],
+                    HttpRequestPath = ["flights", "111", "ancillary-bookings"],
                     WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
 
                     HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
 
-                    ok = meck:wait(ea_aics_store_allocated_ancillaries, read, '_', 1000),
+                    ok = meck:wait(ea_aics_store_ancillary_bookings, read, '_', 1000),
+
+                    [HttpResponseContent, HttpResponseStatus] = HttpResponse,
+                    ?assertMatch({content, ?HTTP_CONTENT_TYPE_JSON, _HttpResponseContentBody}, HttpResponseContent),
+                    ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus)
+                end
+            ]
+        },
+        {"get instance",
+            [
+                fun() ->
+                    ResourceId = <<"111">>,
+                    Resource = #ea_aics_ancillary_booking{id = ResourceId,
+                                                          allocated_ancillary = #ea_aics_allocated_ancillary{id = <<"111">>,
+                                                                                                             ancillary = #ea_aics_ancillary{id = <<"111">>}}},
+
+                    ok = meck:expect(ea_aics_store_ancillary_bookings, read, ['_', '_'], {ok, Resource}),
+
+                    HttpRequestMethod = 'GET',
+                    HttpRequestContentBody = ?HTTP_CONTENT_BODY_EMPTY,
+                    HttpRequestPath = ["flights", "111", "ancillary-bookings", "111"],
+                    WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
+
+                    HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
+
+                    ok = meck:wait(ea_aics_store_ancillary_bookings, read, '_', 1000),
 
                     [HttpResponseContent, HttpResponseStatus] = HttpResponse,
                     ?assertMatch({content, ?HTTP_CONTENT_TYPE_JSON, _HttpResponseContentBody}, HttpResponseContent),
@@ -267,7 +299,7 @@ module_test_() ->
                 fun() ->
                     HttpRequestMethod = 'PUT',
                     HttpRequestContentBody = ?HTTP_CONTENT_BODY_EMPTY,
-                    HttpRequestPath = ["flights", "111", "allocated-ancillaries", "111"],
+                    HttpRequestPath = ["flights", "111", "ancillary-bookings", "111"],
                     WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
 
                     HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
@@ -281,16 +313,16 @@ module_test_() ->
             [
                 fun() ->
 
-                    ok = meck:expect(ea_aics_store_allocated_ancillaries, delete, ['_', '_'], ok),
+                    ok = meck:expect(ea_aics_store_ancillary_bookings, delete, ['_', '_'], ok),
 
                     HttpRequestMethod = 'DELETE',
                     HttpRequestContentBody = ?HTTP_CONTENT_BODY_EMPTY,
-                    HttpRequestPath = ["flights", "111", "allocated-ancillaries", "111"],
+                    HttpRequestPath = ["flights", "111", "ancillary-bookings", "111"],
                     WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
 
                     HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
 
-                    ok = meck:wait(ea_aics_store_allocated_ancillaries, delete, '_', 1000),
+                    ok = meck:wait(ea_aics_store_ancillary_bookings, delete, '_', 1000),
 
                     [HttpResponseStatus] = HttpResponse,
                     ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus)
@@ -302,7 +334,7 @@ module_test_() ->
                 fun() ->
                     HttpRequestMethod = 'DELETE',
                     HttpRequestContentBody = ?HTTP_CONTENT_BODY_EMPTY,
-                    HttpRequestPath = ["flights", "111", "allocated-ancillaries"],
+                    HttpRequestPath = ["flights", "111", "ancillary-bookings"],
                     WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
 
                     HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
