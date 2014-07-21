@@ -4,6 +4,7 @@
                             sub_code :: binary(),
                             group_code :: binary(),
                             sub_group :: binary(),
+	web_description :: binary(),
                             description1 :: binary(),
                             description2 :: binary(),
                             image_thumbnail_url :: binary(),
