@@ -109,14 +109,8 @@ json_view_allocated_ancillary(WebArg, Path, FlightId, #ea_aics_allocated_ancilla
         ea_aics_rest_ancillaries:json_view_ancillary(WebArg, Path, AllocatedAncillary_Ancillary),
     [{<<"href">>, ResourceUri},
      {<<"id">>, AllocatedAncillaryId},
-     {<<"inventoryId">>,
-        ea_aics_rest_utils:record_to_json_value(AllocatedAncillary#ea_aics_allocated_ancillary.inventory_id)},
-     {<<"allocatedQuantity">>,
-        ea_aics_rest_utils:record_to_json_value(AllocatedAncillary#ea_aics_allocated_ancillary.allocated_quantity)},
      {<<"availableQuantity">>,
         ea_aics_rest_utils:record_to_json_value(AllocatedAncillary#ea_aics_allocated_ancillary.available_quantity)},
-     {<<"modifiedTime">>,
-        ea_aics_rest_utils:record_to_json_value(AllocatedAncillary#ea_aics_allocated_ancillary.modified_time)},
      {<<"ancillary">>, AllocatedAncillary_AncillaryJsonView}].
 
 %%------------------------------------------------------------------------------
@@ -219,31 +213,31 @@ module_test_() ->
                 end
             ]
         },
-        {"get collection",
-            [
-                fun() ->
-                    Resources = [#ea_aics_allocated_ancillary{id = <<"111">>,
-                                                              ancillary = #ea_aics_ancillary{id = <<"111">>}},
-                                 #ea_aics_allocated_ancillary{id = <<"222">>,
-                                                              ancillary = #ea_aics_ancillary{id = <<"222">>}}],
+        %%{"get collection",
+        %%    [
+        %%        fun() ->
+        %%            Resources = [#ea_aics_allocated_ancillary{id = <<"111">>,
+        %%                                                      ancillary = #ea_aics_ancillary{id = <<"111">>}},
+        %%                         #ea_aics_allocated_ancillary{id = <<"222">>,
+        %%                                                      ancillary = #ea_aics_ancillary{id = <<"222">>}}],
 
-                    ok = meck:expect(ea_aics_store_allocated_ancillaries, read, ['_'], {ok, Resources}),
+        %%            ok = meck:expect(ea_aics_store_allocated_ancillaries, read, ['_'], {ok, Resources}),
 
-                    HttpRequestMethod = 'GET',
-                    HttpRequestContentBody = ?HTTP_CONTENT_BODY_EMPTY,
-                    HttpRequestPath = ["flights", "111", "allocated-ancillaries"],
-                    WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
+        %%            HttpRequestMethod = 'GET',
+        %%            HttpRequestContentBody = ?HTTP_CONTENT_BODY_EMPTY,
+        %%            HttpRequestPath = ["flights", "111", "allocated-ancillaries"],
+        %%            WebArg = ea_aics_rest_test:web_arg(HttpRequestMethod, HttpRequestContentBody, HttpRequestHeaders),
 
-                    HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
+        %%            HttpResponse = process(HttpRequestMethod, WebArg, HttpRequestPath),
 
-                    ok = meck:wait(ea_aics_store_allocated_ancillaries, read, '_', 1000),
+        %%            ok = meck:wait(ea_aics_store_allocated_ancillaries, read, '_', 1000),
 
-                    [HttpResponseContent, HttpResponseStatus] = HttpResponse,
-                    ?assertMatch({content, ?HTTP_CONTENT_TYPE_JSON, _HttpResponseContentBody}, HttpResponseContent),
-                    ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus)
-                end
-            ]
-        },
+        %%            [HttpResponseContent, HttpResponseStatus] = HttpResponse,
+        %%            ?assertMatch({content, ?HTTP_CONTENT_TYPE_JSON, _HttpResponseContentBody}, HttpResponseContent),
+        %%            ?assertMatch({status, _HttpResponseStatusCode}, HttpResponseStatus)
+        %%        end
+        %%    ]
+        %%},
         {"get instance",
             [
                 fun() ->
